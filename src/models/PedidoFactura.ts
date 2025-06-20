@@ -1,0 +1,29 @@
+export class PedidoFactura{
+    idPedido? : number;
+    cae?: string;
+    caeVto?: Date;
+    ticket? : number;
+    tipoFactura? : number;
+    neto? : number;
+    iva? : number;
+    dni? : number;
+    tipoDni? : number;
+    ptoVenta?: number;
+  
+    constructor(data?: any) {
+      if (data) {
+        this.idPedido = data.idPedido;
+        this.cae = data.cae;
+        this.caeVto = data.caeVto;
+        this.ticket = data.ticket;
+        this.tipoFactura = data.tipoFactura;
+        this.neto = data.neto;
+        this.iva = data.iva;
+        this.dni = data.dni;
+        this.tipoDni = data.tipoDni;
+        this.ptoVenta = data.ptoVenta;
+      }
+    }
+}
+  
+  

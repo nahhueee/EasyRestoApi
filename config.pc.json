@@ -1,0 +1,13 @@
+{
+    "adminUrl": "https://creationserver.com/adminserver/",
+    "produccion": false,
+    "esServer": false,
+    "port": 8000,
+    "idApp": 2,
+    "db": {
+        "host": "127.0.0.1",
+        "user": "root",
+        "password": "",
+        "database": "dbeasyresto"
+    }
+}
