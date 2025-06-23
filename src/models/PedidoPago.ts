@@ -12,7 +12,7 @@ export class PedidoPago{
     constructor(data?: any) {
       if (data) {
         this.idPedido = data.idPedido;
-        this.tipoPago = new TipoPago(data.nombre);
+        this.tipoPago = data.tipoPago;
         this.efectivo = data.efectivo;
         this.digital = data.digital;
         this.recargo = data.recargo;

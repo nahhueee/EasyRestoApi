@@ -102,7 +102,9 @@ DROP TABLE IF EXISTS pedidos_detalle;
 CREATE TABLE pedidos_detalle (
     id INT UNSIGNED AUTO_INCREMENT,
     idPedido INT,
+    idProdVar INT,
     prodVar VARCHAR(100),
+    tipoProdVar VARCHAR(10),
     cantidad INT,
     unitario DECIMAL(10,2),
     total DECIMAL(10,2),

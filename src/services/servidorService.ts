@@ -22,7 +22,6 @@ class ServidorService {
             //Verificamos que el cliente este habilitado para usar este modo
             const habilitado = await AdminServ.ObtenerHabilitacion(dniCliente)
             if (!habilitado) {
-                logger.info('Cliente inexistente o inhabilitado para activar modo servidor.');
                 this.StopUDPDiscovery(false);
 
                 //Si esta activo, pero el usuario ya no esta habilitado, cambiamos el estado de la variable en el config

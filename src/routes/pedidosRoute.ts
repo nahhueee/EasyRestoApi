@@ -73,16 +73,16 @@ router.put('/finalizar', async (req:Request, res:Response) => {
     }
 });
 
-// router.delete('/eliminar/:id', async (req:Request, res:Response) => {
-//     try{ 
-//         res.json(await RubrosRepo.Eliminar(req.params.id));
+router.delete('/eliminar/:id', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await PedidosRepo.Eliminar(req.params.id));
 
-//     } catch(error:any){
-//         let msg = "Error al intentar eliminar el rubro.";
-//         logger.error(msg + " " + error.message);
-//         res.status(500).send(msg);
-//     }
-// });
+    } catch(error:any){
+        let msg = "Error al intentar dar de baja el pedido.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
 //#endregion
 
 

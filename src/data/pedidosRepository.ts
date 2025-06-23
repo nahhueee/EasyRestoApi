@@ -8,6 +8,7 @@ import { TipoPedido } from '../models/TipoPedido';
 import { PedidoPago } from '../models/PedidoPago';
 import { PedidoFactura } from '../models/PedidoFactura';
 import { ObjQR } from '../models/ObjQR';
+import { TipoPago } from '../models/TipoPago';
 
 class PedidosRepository{
 
@@ -43,7 +44,7 @@ class PedidosRepository{
 
     async ObtenerPedido(filtros){
         const connection = await db.getConnection();
-        
+
         try {
             let consulta = await ObtenerQuery(filtros,false);
             const rows = await connection.query(consulta);
@@ -81,7 +82,7 @@ class PedidosRepository{
             digital: parseFloat(row['digital']), 
             recargo: parseFloat(row['recargo']), 
             descuento: parseFloat(row['descuento']), 
-            tipoPago: row['tipoPago'],
+            tipoPago: new TipoPago({id: row['idTipoPago'], nombre: row['tipoPago']}),
             realizado: row['realizado'],
         });
 
@@ -119,9 +120,6 @@ class PedidosRepository{
             for (const element of  pedido.detalles!) {
                 element.idPedido = pedido.id;
                 InsertDetallePedido(connection, element);
-
-                // if(element.tipoProdVar == "Producto")
-                //     ActualizarInventario(connection, element, "-")
             };
 
             //Mandamos la transaccion
@@ -169,29 +167,37 @@ class PedidosRepository{
         }
     }
 
-    async Finalizar(data:any): Promise<string>{
+    async Finalizar(pedido:Pedido): Promise<string>{
         const connection = await db.getConnection();
-        
+        console.log(pedido)
         try {
             //Iniciamos una transaccion
             await connection.beginTransaction();
 
             //Actualizamos el estado del pedido
-            await connection.query("UPDATE pedidos SET finalizado = ? WHERE id = ?", [data.finalizado, data.idPedido]);
+            await connection.query("UPDATE pedidos SET finalizado = ? WHERE id = ?", [pedido.finalizado, pedido.id]);
 
             //Si esta finalizando agregamos los detalles del pago
-            if(data.finalizado == 1){
-                data.pagoPedido.idPedido = data.idPedido;
-                InsertPagoPedido(connection, data.pagoPedido)
+            if(pedido.pago && pedido.finalizado == 1){
+                pedido.pago.idPedido = pedido.id;
+                InsertPagoPedido(connection, pedido.pago)
             }else{
-                await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [data.idPedido]);
+                await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
             }
 
             //Guardamos datos de facturacion
-            if(data.facturaPedido && data.finalizado == 1){
-                data.facturaPedido.idPedido = data.idPedido;
-                InsertFacturaPedido(connection, data.facturaPedido);
-            }       
+            if(pedido.factura?.cae && pedido.finalizado == 1){
+                pedido.factura.idPedido = pedido.id;
+                InsertFacturaPedido(connection, pedido.factura);
+            }  
+            
+            //Actualizamos inventario
+            for (const element of  pedido.detalles!) {
+                const signo = pedido.finalizado ? "-" : "+";
+
+                if(element.tipoProdVar == "Producto")
+                    ActualizarInventario(connection, element, signo)
+            };
 
             //Mandamos la transaccion
             await connection.commit();
@@ -225,7 +231,7 @@ class PedidosRepository{
         const connection = await db.getConnection();
         
         try {
-            await connection.query("DELETE FROM rubros WHERE id = ?", [id]);
+            await connection.query("UPDATE pedidos SET fechaBaja = ? WHERE id = ?", [new Date(), id]);
             return "OK";
 
         } catch (error:any) {
@@ -371,8 +377,10 @@ async function ObtenerDetallePedido(connection, idVenta:number){
                 detalle.cantidad = row['cantidad'];
                 detalle.unitario = parseFloat(row['unitario']);
                 detalle.total = parseFloat(row['total']);
-                detalle.productoVariedad = row['prodVar']
-                detalle.obs = row['obs']
+                detalle.productoVariedad = row['prodVar'];
+                detalle.tipoProdVar = row['tipoProdVar'];
+                detalle.idProdVar = row['idProdVar'];
+                detalle.obs = row['obs'];
                 detalles.push(detalle)
               }
         }
@@ -386,10 +394,10 @@ async function ObtenerDetallePedido(connection, idVenta:number){
 
 async function InsertDetallePedido(connection, detalle):Promise<void>{
     try {
-        const consulta = " INSERT INTO pedidos_detalle(idPedido, prodVar, cantidad, unitario, total, obs) " +
-                         " VALUES(?, ?, ?, ?, ?, ?) ";
+        const consulta = " INSERT INTO pedidos_detalle(idPedido, idProdVar, prodVar, tipoProdVar, cantidad, unitario, total, obs) " +
+                         " VALUES(?, ?, ?, ?, ?, ?, ?, ?) ";
 
-        const parametros = [detalle.idPedido, detalle.productoVariedad, detalle.cantidad, detalle.unitario, detalle.total, detalle.obs];
+        const parametros = [detalle.idPedido, detalle.idProdVar, detalle.productoVariedad, detalle.tipoProdVar, detalle.cantidad, detalle.unitario, detalle.total, detalle.obs];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -402,7 +410,7 @@ async function ActualizarInventario(connection, detalle, operacion):Promise<void
         const consulta = `UPDATE producto_variedad SET cantidad = cantidad ${operacion} ? 
                           WHERE id = ?`;
 
-        const parametros = [detalle.cantidad, detalle.producto.id];
+        const parametros = [detalle.cantidad, detalle.idProdVar];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -474,22 +482,6 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
 
         return query;
             
-    } catch (error) {
-        throw error; 
-    }
-}
-
-async function ValidarExistencia(connection, data:any, modificando:boolean):Promise<boolean>{
-    try {
-        let consulta = " SELECT id FROM rubros WHERE nombre = ? ";
-        if(modificando) consulta += " AND id <> ? ";
-
-        const parametros = [data.nombre.toUpperCase(), data.id];
-
-        const rows = await connection.query(consulta,parametros);
-        if(rows[0].length > 0) return true;
-
-        return false;
     } catch (error) {
         throw error; 
     }
