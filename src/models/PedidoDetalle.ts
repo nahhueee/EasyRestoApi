@@ -3,7 +3,7 @@ export class DetallePedido{
     idPedido?: number;
     idProdVar? : number;
     productoVariedad?: string;
-    tipoProdVar?: "Producto" | "Variedad";
+    tipoProdVar?: string;
     cantidad?: number;
     unitario?: number;
     total?: number;

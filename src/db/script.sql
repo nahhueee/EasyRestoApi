@@ -65,8 +65,8 @@ CREATE TABLE producto_variedad (
 )
 ENGINE=InnoDB;
 
-DROP TABLE IF EXISTS variantes;
-CREATE TABLE variantes (
+DROP TABLE IF EXISTS variedad_variante;
+CREATE TABLE variedad_variante (
     idProdVar INT,
     nombre VARCHAR(100),
     costo DECIMAL(10,2),
@@ -75,6 +75,16 @@ CREATE TABLE variantes (
 
     PRIMARY KEY(idProdVar,nombre)
 );
+ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS variedad_guarnicion;
+CREATE TABLE variedad_guarnicion (
+    idProdVar INT,
+    idGuarnicion INT
+
+    PRIMARY KEY(idProdVar, idGuarnicion)
+);
+ENGINE=InnoDB;
 
 DROP TABLE IF EXISTS pedidos;
 CREATE TABLE pedidos (

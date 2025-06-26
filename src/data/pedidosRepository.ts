@@ -439,12 +439,12 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
             filtro += " AND p.id = " + filtros.idPedido;
         }
         else
-        {
+        {   
             if (filtros.tipoPedido != 0) { filtro += " AND p.idTipo = " + filtros.tipoPedido; }
             if (filtros.responsable != 0) { filtro += " AND p.idResponsable = " + filtros.responsable; }
             if (filtros.cliente != null) { filtro += " AND p.cliente LIKE '%" + filtros.cliente + "%' "; }
 
-            if (filtros.fecha != null) { filtro += " AND p.fecha = '" + filtros.fecha.Value.ToString("yyyy-MM-dd") + "' "; }
+            if (filtros.fecha != null) { filtro += " AND p.fecha = '" + moment(filtros.fecha).format('YYYY-MM-DD') + "' "; }
 
             filtro += (filtros.finalizado) ? " AND p.finalizado = 1 " : " AND p.finalizado = 0 ";
         }

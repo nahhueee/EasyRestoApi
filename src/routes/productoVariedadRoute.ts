@@ -14,6 +14,28 @@ router.post('/obtener', async (req:Request, res:Response) => {
         res.status(500).send(msg);
     }
 });
+
+router.get('/guarniciones/:nombre', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await ProdVarRepository.ObtenerGuarniciones(req.params.nombre));
+
+    } catch(error:any){
+        let msg = "Error al obtener el listado de guarniciones.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+
+router.get('/obtener-variedad/:id', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await ProdVarRepository.ObtenerVariedad({idVariedad: req.params.id }));
+
+    } catch(error:any){
+        let msg = "Error al obtener la variedad nro " + req.params.id + ".";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
 //#endregion
 
 //#region ABM

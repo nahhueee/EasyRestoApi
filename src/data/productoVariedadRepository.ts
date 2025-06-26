@@ -1,4 +1,5 @@
 import db from '../db/db.config';
+import { GuarnicionVariedad } from '../models/GuarnicionVariedad';
 import { ProductoVariedad } from '../models/ProductoVariedad';
 import { Rubro } from '../models/Rubro';
 import { VarianteVariedad } from '../models/VarianteVariedad';
@@ -23,33 +24,8 @@ class ProductoVariedadRepository{
             if (Array.isArray(rows)) {
                 for (let i = 0; i < rows.length; i++) { 
                     const row = rows[i];
-
-                    let elemento:ProductoVariedad = new ProductoVariedad({
-                        id: row['id'],
-                        nombre: row['nombre'],
-                        tipo: row['tipo'],
-                        imagen: row['imagen'],
-                        costo: row['costo'],
-                        precioLocal: row['pLocal'],
-                        precioDelivery: row['pDelivery'],
-                        cantidad: row['cantidad'],
-                        rubro: new Rubro({
-                            id: row['idRubro'], 
-                            nombre: row['rubro']
-                        })
-                    });
-                   
-                    if(elemento.tipo == "Variedad") {
-                        elemento.variantes = await ObtenerVariantesVariedad(connection, row['id']); 
-                        if(elemento.variantes && elemento.variantes.length > 0){
-                            elemento.costo = elemento.variantes[0].costo;
-                            elemento.precioLocal = elemento.variantes[0].precioLocal;
-                            elemento.precioDelivery = elemento.variantes[0].precioDelivery;
-                        }
-                    }
-
-                    productosVariedad.push(elemento);
-                  }
+                    productosVariedad.push(await this.ArmarObjetoVariedad(connection, row));
+                }
             }
 
             return {total:resultado[0][0].total, registros:productosVariedad};
@@ -59,6 +35,68 @@ class ProductoVariedadRepository{
         } finally{
             connection.release();
         }
+    }
+
+    async ObtenerGuarniciones(nombre:string){
+        const connection = await db.getConnection();
+
+        try {
+            let consulta = "SELECT id, nombre descripcion FROM producto_variedad WHERE tipo = 'Guarnicion' AND nombre LIKE '%"+ nombre + "%' ";
+            const [rows] = await connection.query(consulta);
+            return [rows][0];
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
+    async ObtenerVariedad(filtros){
+        const connection = await db.getConnection();
+
+        try {
+            let consulta = await ObtenerQuery(filtros,false);
+            const rows = await connection.query(consulta);
+           
+            const row = rows[0][0];
+            return await this.ArmarObjetoVariedad(connection, row);
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
+    async ArmarObjetoVariedad(connection, row){
+        let elemento:ProductoVariedad = new ProductoVariedad({
+            id: row['id'],
+            nombre: row['nombre'],
+            tipo: row['tipo'],
+            imagen: row['imagen'],
+            costo: row['costo'],
+            precioLocal: row['pLocal'],
+            precioDelivery: row['pDelivery'],
+            cantidad: row['cantidad'],
+            rubro: new Rubro({
+                id: row['idRubro'], 
+                nombre: row['rubro']
+            })
+        });
+        
+        if(elemento.tipo == "Variedad") {
+            elemento.variantes = await ObtenerVariantesVariedad(connection, row['id']); 
+            if(elemento.variantes && elemento.variantes.length > 0){
+                elemento.costo = elemento.variantes[0].costo;
+                elemento.precioLocal = elemento.variantes[0].precioLocal;
+                elemento.precioDelivery = elemento.variantes[0].precioDelivery;
+            }
+
+            elemento.guarniciones = await ObtenerGuarnicionesVariedad(connection, row['id']); 
+        }
+
+        return elemento;
     }
     //#endregion
 
@@ -96,11 +134,21 @@ class ProductoVariedadRepository{
             
             //Insertar variantes si las tiene
             if(data.tipo == "Variedad" && data.variantes){
-                await connection.query("DELETE FROM variantes WHERE idProdVar = ?", [data.id]);
+                await connection.query("DELETE FROM variedad_variante WHERE idProdVar = ?", [data.id]);
 
                 //Insertamos las variantes
                 for (const variante of data.variantes) {
                     InsertVariante(connection, variante, data.id);                
+                };
+            }
+
+            //Insertar guarniciones si las tiene
+            if(data.tipo == "Variedad" && data.guarniciones){
+                await connection.query("DELETE FROM variedad_guarnicion WHERE idProdVar = ?", [data.id]);
+
+                //Insertamos las variantes
+                for (const guarnicion of data.guarniciones) {
+                    InsertGuarnicion(connection, guarnicion, data.id);                
                 };
             }
 
@@ -155,11 +203,21 @@ class ProductoVariedadRepository{
 
             //Insertar variantes si las tiene
             if(data.tipo == "Variedad" && data.variantes){
-                await connection.query("DELETE FROM variantes WHERE idProdVar = ?", [data.id]);
+                await connection.query("DELETE FROM variedad_variante WHERE idProdVar = ?", [data.id]);
 
                 //Insertamos las variantes
                 for (const variante of data.variantes) {
                     InsertVariante(connection, variante, data.id);                
+                };
+            }
+
+            //Insertar guarniciones si las tiene
+            if(data.tipo == "Variedad" && data.guarniciones){
+                await connection.query("DELETE FROM variedad_guarnicion WHERE idProdVar = ?", [data.id]);
+
+                //Insertamos las variantes
+                for (const guarnicion of data.guarniciones) {
+                    InsertGuarnicion(connection, guarnicion, data.id);                
                 };
             }
 
@@ -221,14 +279,19 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         //#endregion
 
         // #region FILTROS
-        if (filtros.busqueda != null && filtros.busqueda != "") 
-            filtro += " AND (pv.nombre LIKE '%"+ filtros.busqueda + "%') ";
+        if (filtros.idVariedad != null && filtros.idVariedad != 0) 
+                filtro += " AND pv.id = "+ filtros.idVariedad + " ";
+        else{
+            if (filtros.busqueda != null && filtros.busqueda != "") 
+                filtro += " AND (pv.nombre LIKE '%"+ filtros.busqueda + "%') ";
 
-        if (filtros.tipo != null && filtros.tipo != "")
-            filtro += " AND pv.tipo = '"+ filtros.tipo + "' ";
-
-        if (filtros.rubro != null && filtros.rubro != "")
-            filtro += " AND pv.idrubro = "+ filtros.rubro;
+            if (filtros.tipo != null && filtros.tipo != "")
+                filtro += " AND pv.tipo = '"+ filtros.tipo + "' ";
+        
+            if (filtros.rubro != null && filtros.rubro != "")
+                filtro += " AND pv.idrubro = "+ filtros.rubro;
+        }
+        
         // #endregion
 
         // #region ORDENAMIENTO
@@ -267,10 +330,10 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
     }
 }
 
-//#region VARIANTES VARIEDAD
+//#region VARIANTES-GUARNICION VARIEDAD
 async function ObtenerVariantesVariedad(connection, idVariedad:number){
     try {
-        const consulta = " SELECT * FROM variantes " +
+        const consulta = " SELECT * FROM variedad_variante " +
                          " WHERE idProdVar = ?";
 
         const [rows] = await connection.query(consulta, [idVariedad]);
@@ -299,12 +362,54 @@ async function ObtenerVariantesVariedad(connection, idVariedad:number){
     }
 }
 
+async function ObtenerGuarnicionesVariedad(connection, idVariedad:number){
+    try {
+        const consulta = " SELECT vg.idProdVar, vg.idGuarnicion, pv.nombre descripcion FROM variedad_guarnicion vg " +
+                         " INNER JOIN producto_variedad pv on pv.id = vg.idGuarnicion " +
+                         " WHERE vg.idProdVar = ? ";
+
+        const [rows] = await connection.query(consulta, [idVariedad]);
+        const variantes:GuarnicionVariedad[] = [];
+
+        if (Array.isArray(rows)) {
+            for (let i = 0; i < rows.length; i++) { 
+                const row = rows[i];
+                
+                let guarnicion:GuarnicionVariedad = new GuarnicionVariedad({
+                    descripcion : row['descripcion'],
+                    id : row['idGuarnicion'],
+                });
+               
+                variantes.push(guarnicion)
+              }
+        }
+
+        return variantes;
+
+    } catch (error) {
+        throw error; 
+    }
+}
+
 async function InsertVariante(connection, variante, idProdVar):Promise<void>{
     try {
-        const consulta = " INSERT INTO variantes(idProdVar, nombre, costo, pLocal, pDelivery) " +
+        const consulta = " INSERT INTO variedad_variante(idProdVar, nombre, costo, pLocal, pDelivery) " +
                          " VALUES(?, ?, ?, ?, ?) ";
 
         const parametros = [idProdVar, variante.descripcion, variante.costo, variante.precioLocal, variante.precioDelivery];
+        await connection.query(consulta, parametros);
+        
+    } catch (error) {
+        throw error; 
+    }
+}
+
+async function InsertGuarnicion(connection, guarnicion, idProdVar):Promise<void>{
+    try {
+        const consulta = " INSERT INTO variedad_guarnicion(idProdVar, idGuarnicion) " +
+                         " VALUES(?, ?) ";
+
+        const parametros = [idProdVar, guarnicion.id];
         await connection.query(consulta, parametros);
         
     } catch (error) {

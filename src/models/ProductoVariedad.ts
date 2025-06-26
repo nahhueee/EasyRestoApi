@@ -1,10 +1,11 @@
+import { GuarnicionVariedad } from "./GuarnicionVariedad";
 import { Rubro } from "./Rubro";
 import { VarianteVariedad } from "./VarianteVariedad";
 
 export class ProductoVariedad {
     id : number = 0;
     nombre? : string;
-    tipo?: "Producto" | "Variedad";
+    tipo?: string;
     rubro? : Rubro;
     imagen : string = "";
     costo : number = 0;
@@ -13,6 +14,7 @@ export class ProductoVariedad {
 
     cantidad?: number; // solo si es tipo "Producto"
     variantes? : VarianteVariedad[] //solo para "Variedad"
+    guarniciones? : GuarnicionVariedad[] //solo para "Variedad"
 
     constructor(data?: any) {
         if (data) {
@@ -28,6 +30,9 @@ export class ProductoVariedad {
 
             if(data.variantes) 
                 this.variantes = new Array<VarianteVariedad>(data.variantes);
+
+            if(data.guarniciones) 
+                this.guarniciones = new Array<GuarnicionVariedad>(data.guarniciones);
         }
     }
 }
