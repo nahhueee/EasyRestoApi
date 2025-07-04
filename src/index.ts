@@ -28,24 +28,26 @@ server.listen(app.get('port'), host, () => {
 //#region Rutas
 import actualizacionRuta from './routes/actualizacionRoute';
 import usuariosRuta from './routes/usuariosRoute';
-import rubrosRuta from './routes/rubrosRuta';
-import productosVariedadRuta from './routes/productoVariedadRoute';
+import categoriasRuta from './routes/categoriasRuta';
+import productosVariedadRuta from './routes/productosRoute';
 import parametrosRuta from './routes/parametrosRoute';
 import logsRuta from './routes/logsRoute';
 import servidorRuta from './routes/servidorRoute';
 import pedidosRuta from './routes/pedidosRoute';
 import mesasRuta from './routes/mesasRoute';
+import adicionalesRuta from './routes/adicionalesRoute';
 import miscRuta from './routes/miscRoute';
 
 app.use('/easyresto/update', actualizacionRuta)
 app.use('/easyresto/usuarios', usuariosRuta);
-app.use('/easyresto/rubros', rubrosRuta);
-app.use('/easyresto/producto-variedad', productosVariedadRuta);
+app.use('/easyresto/categorias', categoriasRuta);
+app.use('/easyresto/productos', productosVariedadRuta);
 app.use('/easyresto/parametros', parametrosRuta);
 app.use('/easyresto/logs', logsRuta);
 app.use('/easyresto/server', servidorRuta);
 app.use('/easyresto/pedidos', pedidosRuta);
 app.use('/easyresto/mesas', mesasRuta);
+app.use('/easyresto/adicionales', adicionalesRuta);
 app.use('/easyresto/misc', miscRuta);
 
 

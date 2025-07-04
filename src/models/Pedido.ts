@@ -7,12 +7,12 @@ import { Usuario } from "./Usuario";
 
 export class Pedido {
     id? : number;
+    tipo?: TipoPedido;
     fecha? : Date;
     hora? : string;
     total? : number;
     mesa? : Mesa;
     responsable? : Usuario;
-    tipoPedido? : TipoPedido;
     obs? : string;
     cliente? : string;
     finalizado?: number;
@@ -30,7 +30,7 @@ export class Pedido {
         this.finalizado = data.finalizado;
         this.mesa = new Mesa(data.mesa);
         this.responsable = new Usuario(data.usuario);
-        this.tipoPedido = new TipoPedido(data.tipoPedido);
+        this.tipo = new TipoPedido(data.tipo);
         this.pago = new PedidoPago(data.pago);
         this.factura = new PedidoFactura(data.pago);
         this.detalles = data.detalles;

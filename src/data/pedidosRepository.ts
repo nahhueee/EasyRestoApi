@@ -74,7 +74,7 @@ class PedidosRepository{
 
         pedido.responsable = new Usuario({id: row['idResponsable'], nombre: row['responsable']});
         pedido.mesa = new Mesa({id: row['idMesa'], codigo: row['codigoMesa']});
-        pedido.tipoPedido = new TipoPedido({id: row['idTipo'], codigo: row['tipo']});
+        pedido.tipo = new TipoPedido({id: row['idTipo'], codigo: row['tipo']});
 
 
         pedido.pago = new PedidoPago({

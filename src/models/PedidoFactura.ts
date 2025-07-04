@@ -9,6 +9,7 @@ export class PedidoFactura{
     dni? : number;
     tipoDni? : number;
     ptoVenta?: number;
+    condReceptor?: number;
   
     constructor(data?: any) {
       if (data) {
@@ -22,6 +23,7 @@ export class PedidoFactura{
         this.dni = data.dni;
         this.tipoDni = data.tipoDni;
         this.ptoVenta = data.ptoVenta;
+        this.condReceptor = data.condReceptor;
       }
     }
 }

@@ -38,6 +38,17 @@ router.get('/selector-cargos', async (req:Request, res:Response) => {
     }
 });
 
+router.get('/selector-roles', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await UsuariosRepo.RolesSelector());
+
+    } catch(error:any){
+        let msg = "Error al obtener el selector de roles.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+
 router.get('/selector', async (req:Request, res:Response) => {
     try{ 
         res.json(await UsuariosRepo.UsuariosSelector());

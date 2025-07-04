@@ -1,4 +1,4 @@
-export class Rubro {
+export class ListaPrecio {
     id?:number;
     nombre?:string;
 

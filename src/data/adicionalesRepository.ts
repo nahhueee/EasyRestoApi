@@ -1,6 +1,6 @@
 import db from '../db/db.config';
 
-class UsuariosRepository{
+class AdicionalesRepository{
 
     //#region OBTENER
     async Obtener(filtros:any){
@@ -24,56 +24,13 @@ class UsuariosRepository{
         }
     }
 
-    async ObtenerUsuario(filtros:any){
+    async BuscarAdicionales(filtros){
         const connection = await db.getConnection();
-        
+
         try {
             let consulta = await ObtenerQuery(filtros,false);
             const rows = await connection.query(consulta);
-            
-            return rows[0][0];
-
-        } catch (error:any) {
-            throw error;
-        } finally{
-            connection.release();
-        }
-    }
-
-    async UsuariosSelector(){
-        const connection = await db.getConnection();
-        
-        try {
-            const [rows] = await connection.query('SELECT id, nombre FROM usuarios');
-            return [rows][0];
-
-        } catch (error:any) {
-            throw error;
-        } finally{
-            connection.release();
-        }
-    }
-
-    async CargosSelector(){
-        const connection = await db.getConnection();
-        
-        try {
-            const [rows] = await connection.query('SELECT id, nombre FROM cargos');
-            return [rows][0];
-
-        } catch (error:any) {
-            throw error;
-        } finally{
-            connection.release();
-        }
-    }
-
-    async RolesSelector(){
-        const connection = await db.getConnection();
-        
-        try {
-            const [rows] = await connection.query('SELECT id, nombre FROM roles');
-            return [rows][0];
+            return rows[0];
 
         } catch (error:any) {
             throw error;
@@ -89,11 +46,11 @@ class UsuariosRepository{
         
         try {
             let existe = await ValidarExistencia(connection, data, false);
-            if(existe)//Verificamos si ya existe un usuario con el mismo nombre o correo
-                return "Ya existe un usuario con el mismo nombre o correo.";
+            if(existe)//Verificamos si ya existe un rubro con el mismo nombre 
+                return "Ya existe un adicional con el mismo nombre.";
             
-            const consulta = "INSERT INTO usuarios(nombre, email, pass, idCargo, idRol) VALUES (?, ?, ?, ?, ?)";
-            const parametros = [data.nombre.toUpperCase(), data.email, data.pass, data.cargo.id, data.rol.id];
+            const consulta = "INSERT INTO adicionales(descripcion) VALUES (?)";
+            const parametros = [data.descripcion.toUpperCase()];
             
             await connection.query(consulta, parametros);
             return "OK";
@@ -107,21 +64,17 @@ class UsuariosRepository{
 
     async Modificar(data:any): Promise<string>{
         const connection = await db.getConnection();
+        
         try {
             let existe = await ValidarExistencia(connection, data, true);
-
-            if(existe)//Verificamos si ya existe un usuario con el mismo nombre o correo
-                return "Ya existe un usuario con el mismo nombre o correo.";
+            if(existe)//Verificamos si ya existe uno con el mismo nombre
+                return "Ya existe un adicional con el mismo nombre.";
             
-            const consulta = `UPDATE usuarios 
-                              SET nombre = ?,
-                              email = ?,
-                              pass = ?,
-                              idCargo = ?,
-                              idRol = ?,
-                              WHERE id = ? `;
+                const consulta = `UPDATE adicionales 
+                SET descripcion = ?
+                WHERE id = ? `;
 
-            const parametros = [data.nombre.toUpperCase(), data.email, data.pass, data.cargo.id, data.rol.id, data.id];
+            const parametros = [data.descripcion.toUpperCase(), data.id];
             await connection.query(consulta, parametros);
             return "OK";
 
@@ -136,7 +89,7 @@ class UsuariosRepository{
         const connection = await db.getConnection();
         
         try {
-            await connection.query("DELETE FROM usuarios WHERE id = ?", [id]);
+            await connection.query("DELETE FROM adicionales WHERE id = ?", [id]);
             return "OK";
 
         } catch (error:any) {
@@ -161,10 +114,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
 
         // #region FILTROS
         if (filtros.busqueda != null && filtros.busqueda != "") 
-            filtro += " AND u.nombre LIKE '%"+ filtros.busqueda + "%' ";
-        
-        if(filtros.usuario != null && filtros.usuario != 0)
-            filtro += " AND u.id = '" + filtros.usuario + "'";
+            filtro += " AND nombre LIKE '%"+ filtros.busqueda + "%' ";
         // #endregion
 
         if (esTotal)
@@ -180,16 +130,14 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
             
         //Arma la Query con el paginado y los filtros correspondientes
         query = count +
-            " SELECT u.*, c.nombre cargo " +
-            " FROM usuarios u " +
-            " LEFT JOIN cargos c on c.id = u.idCargo " +
-            " LEFT JOIN roles r on r.id = u.idRol " +
+            " SELECT * " +
+            " FROM adicionales " +
             " WHERE 1 = 1 " +
             filtro +
-            " ORDER BY u.id DESC" +
+            " ORDER BY id DESC " +
             paginado +
             endCount;
-        
+
         return query;
             
     } catch (error) {
@@ -199,7 +147,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
 
 async function ValidarExistencia(connection, data:any, modificando:boolean):Promise<boolean>{
     try {
-        let consulta = " SELECT * FROM usuarios WHERE nombre = ? ";
+        let consulta = " SELECT id FROM adicionales WHERE descripcion = ? ";
         if(modificando) consulta += " AND id <> ? ";
 
         const parametros = [data.nombre.toUpperCase(), data.id];
@@ -213,4 +161,4 @@ async function ValidarExistencia(connection, data:any, modificando:boolean):Prom
     }
 }
 
-export const UsuariosRepo = new UsuariosRepository();
+export const AdicionalesRepo = new AdicionalesRepository();
