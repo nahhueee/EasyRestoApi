@@ -43,7 +43,7 @@ class AdicionalesRepository{
     //#region ABM
     async Agregar(data:any): Promise<string>{
         const connection = await db.getConnection();
-        
+        console.log(data)
         try {
             let existe = await ValidarExistencia(connection, data, false);
             if(existe)//Verificamos si ya existe un rubro con el mismo nombre 
@@ -114,7 +114,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
 
         // #region FILTROS
         if (filtros.busqueda != null && filtros.busqueda != "") 
-            filtro += " AND nombre LIKE '%"+ filtros.busqueda + "%' ";
+            filtro += " AND descripcion LIKE '%"+ filtros.busqueda + "%' ";
         // #endregion
 
         if (esTotal)
@@ -150,7 +150,7 @@ async function ValidarExistencia(connection, data:any, modificando:boolean):Prom
         let consulta = " SELECT id FROM adicionales WHERE descripcion = ? ";
         if(modificando) consulta += " AND id <> ? ";
 
-        const parametros = [data.nombre.toUpperCase(), data.id];
+        const parametros = [data.descripcion.toUpperCase(), data.id];
 
         const rows = await connection.query(consulta,parametros);
         if(rows[0].length > 0) return true;

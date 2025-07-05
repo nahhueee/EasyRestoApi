@@ -281,7 +281,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         query = count +
                 " SELECT p.*, COALESCE(c.nombre, 'ELIMINADO') categoria " +
                 " FROM productos p " +
-                " INNER JOIN categorias c ON r.id = p.idCategoria " +
+                " INNER JOIN categorias c ON c.id = p.idCategoria " +
                 " WHERE 1 = 1 " +
                 filtro +
                 orden +
