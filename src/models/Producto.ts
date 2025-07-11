@@ -1,6 +1,6 @@
 import { Categoria } from "./Categoria";
-import { ProductosAdicionales } from "./ProductosAdicionales";
-import { ProductosPrecios } from "./ProductosPrecios";
+import { ProductoAdicional } from "./ProductoAdicional";
+import { ProductoPrecio } from "./ProductoPrecio";
 
 export class Producto {
     id : number = 0;
@@ -11,8 +11,8 @@ export class Producto {
     cantidad: number = 0; 
     descripcion: string = "";
 
-    precios? : ProductosPrecios[] 
-    adicionales? : ProductosAdicionales[] 
+    precios? : ProductoPrecio[] 
+    adicionales? : ProductoAdicional[] 
 
     constructor(data?: any) {
         if (data) {
@@ -22,12 +22,13 @@ export class Producto {
             this.categoria = new Categoria(data.categoria);
             this.imagen = data.imagen;
             this.cantidad = data.cantidad;
+            this.descripcion = data.descripcion;
 
             if(data.precios) 
-                this.precios = new Array<ProductosPrecios>(data.precios);
+                this.precios = new Array<ProductoPrecio>(data.precios);
 
             if(data.adicionales) 
-                this.adicionales = new Array<ProductosAdicionales>(data.adicionales);
+                this.adicionales = new Array<ProductoAdicional>(data.adicionales);
         }
     }
 }

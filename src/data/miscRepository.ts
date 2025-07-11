@@ -5,7 +5,7 @@ class MiscRepository{
         const connection = await db.getConnection();
     
         try {
-            const [rows] = await connection.query('SELECT id, nombre FROM pedidos_tipo');
+            const [rows] = await connection.query('SELECT id, nombre, icono FROM pedidos_tipo');
             return [rows][0];
 
         } catch (error:any) {

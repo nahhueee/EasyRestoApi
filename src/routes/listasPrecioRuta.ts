@@ -1,4 +1,4 @@
-import {AdicionalesRepo} from '../data/adicionalesRepository';
+import {ListasRepo} from '../data/listasPrecioRepository';
 import {Router, Request, Response} from 'express';
 import logger from '../log/loggerGeneral';
 const router : Router  = Router();
@@ -6,10 +6,10 @@ const router : Router  = Router();
 //#region OBTENER
 router.post('/obtener', async (req:Request, res:Response) => {
     try{ 
-        res.json(await AdicionalesRepo.Obtener(req.body));
+        res.json(await ListasRepo.Obtener(req.body));
 
     } catch(error:any){
-        let msg = "Error al obtener el listado de adicionales.";
+        let msg = "Error al obtener el listado de listas de precio.";
         logger.error(msg + " " + error.message);
         res.status(500).send(msg);
     }
@@ -17,10 +17,10 @@ router.post('/obtener', async (req:Request, res:Response) => {
 
 router.get('/selector', async (req:Request, res:Response) => {
     try{ 
-        res.json(await AdicionalesRepo.AdicionalesSelector());
+        res.json(await ListasRepo.ListasSelector());
 
     } catch(error:any){
-        let msg = "Error al obtener el selector de adicionales.";
+        let msg = "Error al obtener el selector de listas de precio.";
         logger.error(msg + " " + error.message);
         res.status(500).send(msg);
     }
@@ -30,10 +30,10 @@ router.get('/selector', async (req:Request, res:Response) => {
 //#region ABM
 router.post('/agregar', async (req:Request, res:Response) => {
     try{ 
-        res.json(await AdicionalesRepo.Agregar(req.body));
+        res.json(await ListasRepo.Agregar(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar agregar el adicional.";
+        let msg = "Error al intentar agregar la lista de precios.";
         logger.error(msg + " " + error.message);
         res.status(500).send(msg);
     }
@@ -41,10 +41,10 @@ router.post('/agregar', async (req:Request, res:Response) => {
 
 router.put('/modificar', async (req:Request, res:Response) => {
     try{ 
-        res.json(await AdicionalesRepo.Modificar(req.body));
+        res.json(await ListasRepo.Modificar(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar modificar el adicional.";
+        let msg = "Error al intentar modificar la lista de precios.";
         logger.error(msg + " " + error.message);
         res.status(500).send(msg);
     }
@@ -52,10 +52,10 @@ router.put('/modificar', async (req:Request, res:Response) => {
 
 router.delete('/eliminar/:id', async (req:Request, res:Response) => {
     try{ 
-        res.json(await AdicionalesRepo.Eliminar(req.params.id));
+        res.json(await ListasRepo.Eliminar(req.params.id));
 
     } catch(error:any){
-        let msg = "Error al intentar eliminar el adicional.";
+        let msg = "Error al intentar eliminar la lista de precios.";
         logger.error(msg + " " + error.message);
         res.status(500).send(msg);
     }

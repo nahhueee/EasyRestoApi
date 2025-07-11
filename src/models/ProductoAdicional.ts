@@ -1,6 +1,6 @@
 import { Adicional } from "./Adicional";
 
-export class ProductosAdicionales {
+export class ProductoAdicional {
     idProducto?:number;
     adicional?:Adicional;
     recargo:number = 0;

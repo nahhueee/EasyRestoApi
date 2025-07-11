@@ -24,13 +24,12 @@ class AdicionalesRepository{
         }
     }
 
-    async BuscarAdicionales(filtros){
+    async AdicionalesSelector(){
         const connection = await db.getConnection();
-
+        
         try {
-            let consulta = await ObtenerQuery(filtros,false);
-            const rows = await connection.query(consulta);
-            return rows[0];
+            const [rows] = await connection.query('SELECT id, descripcion FROM adicionales');
+            return [rows][0];
 
         } catch (error:any) {
             throw error;
@@ -43,11 +42,11 @@ class AdicionalesRepository{
     //#region ABM
     async Agregar(data:any): Promise<string>{
         const connection = await db.getConnection();
-        console.log(data)
+
         try {
             let existe = await ValidarExistencia(connection, data, false);
-            if(existe)//Verificamos si ya existe un rubro con el mismo nombre 
-                return "Ya existe un adicional con el mismo nombre.";
+            if(existe)//Verificamos si ya existe un adicional con el mismo nombre 
+                return "Ya existe un adicional con la misma descripción.";
             
             const consulta = "INSERT INTO adicionales(descripcion) VALUES (?)";
             const parametros = [data.descripcion.toUpperCase()];
@@ -68,7 +67,7 @@ class AdicionalesRepository{
         try {
             let existe = await ValidarExistencia(connection, data, true);
             if(existe)//Verificamos si ya existe uno con el mismo nombre
-                return "Ya existe un adicional con el mismo nombre.";
+                return "Ya existe un adicional con la misma descripción.";
             
                 const consulta = `UPDATE adicionales 
                 SET descripcion = ?

@@ -472,7 +472,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
                 " LEFT JOIN usuarios u ON u.id = p.idResponsable " +
                 " LEFT JOIN mesas m ON m.id = p.idMesa " +
                 " LEFT JOIN pedidos_pago pp ON pp.idPedido = p.id " +
-                " LEFT JOIN tipos_pago tpag ON tpag.id = pp.idPago " +
+                " LEFT JOIN tipos_pago tpag ON tpag.id = pp.idTPago " +
                 " LEFT JOIN pedidos_factura pfac ON pfac.idPedido = p.id " +
                 " WHERE fechaBaja IS NULL " +
                 filtro +

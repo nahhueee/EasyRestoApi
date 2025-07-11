@@ -1,6 +1,6 @@
 import db from '../db/db.config';
 
-class RubrosRepository{
+class ListasPrecioRepository{
 
     //#region OBTENER
     async Obtener(filtros:any){
@@ -14,6 +14,7 @@ class RubrosRepository{
             //Obtengo la lista de registros y el total
             const rows = await connection.query(queryRegistros);
             const resultado = await connection.query(queryTotal);
+
             return {total:resultado[0][0].total, registros:rows[0]};
 
         } catch (error:any) {
@@ -23,11 +24,11 @@ class RubrosRepository{
         }
     }
 
-    async RubrosSelector(){
+    async ListasSelector(){
         const connection = await db.getConnection();
         
         try {
-            const [rows] = await connection.query('SELECT id, nombre, icono FROM categorias ORDER BY favorita DESC');
+            const [rows] = await connection.query('SELECT id, nombre FROM listas_precio');
             return [rows][0];
 
         } catch (error:any) {
@@ -36,20 +37,19 @@ class RubrosRepository{
             connection.release();
         }
     }
-
     //#endregion
 
     //#region ABM
     async Agregar(data:any): Promise<string>{
         const connection = await db.getConnection();
-        
+
         try {
             let existe = await ValidarExistencia(connection, data, false);
-            if(existe)//Verificamos si ya existe una categoria con el mismo nombre 
-                return "Ya existe una categoria con el mismo nombre.";
+            if(existe)//Verificamos si ya existe una lista con el mismo nombre 
+                return "Ya existe una una lista de precios con el mismo nombre.";
             
-            const consulta = "INSERT INTO categorias(favorita, nombre, icono) VALUES (?, ?, ?)";
-            const parametros = [data.favorita ? 1 : 0, data.nombre.toUpperCase(), data.icono];
+            const consulta = "INSERT INTO listas_precio(nombre) VALUES (?)";
+            const parametros = [data.nombre.toUpperCase()];
             
             await connection.query(consulta, parametros);
             return "OK";
@@ -66,16 +66,14 @@ class RubrosRepository{
         
         try {
             let existe = await ValidarExistencia(connection, data, true);
-            if(existe)//Verificamos si ya existe una categoria con el mismo nombre
-                return "Ya existe una categoria con el mismo nombre.";
+            if(existe)//Verificamos si ya existe uno con el mismo nombre
+                return "Ya existe una lista de precios con el mismo nombre.";
             
-                const consulta = `UPDATE categorias 
-                SET favorita = ?,
-                    nombre = ?,
-                    icono = ?
+                const consulta = `UPDATE listas_precio 
+                SET nombre = ?
                 WHERE id = ? `;
 
-            const parametros = [data.favorita ? 1 : 0, data.nombre.toUpperCase(), data.icono, data.id];
+            const parametros = [data.descripcion.toUpperCase(), data.id];
             await connection.query(consulta, parametros);
             return "OK";
 
@@ -90,7 +88,7 @@ class RubrosRepository{
         const connection = await db.getConnection();
         
         try {
-            await connection.query("DELETE FROM categorias WHERE id = ?", [id]);
+            await connection.query("DELETE FROM listas_precio WHERE id = ?", [id]);
             return "OK";
 
         } catch (error:any) {
@@ -132,8 +130,8 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         //Arma la Query con el paginado y los filtros correspondientes
         query = count +
             " SELECT * " +
-            " FROM categorias " +
-            " WHERE id <> 1 " +
+            " FROM listas_precio " +
+            " WHERE 1 = 1 " +
             filtro +
             " ORDER BY id DESC " +
             paginado +
@@ -148,7 +146,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
 
 async function ValidarExistencia(connection, data:any, modificando:boolean):Promise<boolean>{
     try {
-        let consulta = " SELECT id FROM categorias WHERE nombre = ? ";
+        let consulta = " SELECT id FROM listas_precio WHERE nombre = ? ";
         if(modificando) consulta += " AND id <> ? ";
 
         const parametros = [data.nombre.toUpperCase(), data.id];
@@ -162,4 +160,4 @@ async function ValidarExistencia(connection, data:any, modificando:boolean):Prom
     }
 }
 
-export const RubrosRepo = new RubrosRepository();
+export const ListasRepo = new ListasPrecioRepository();

@@ -1,6 +1,6 @@
 import { ListaPrecio } from "./ListaPrecio";
 
-export class ProductosPrecios {
+export class ProductoPrecio {
     id?:number;
     idProducto?:number;
     listaPrecio?:ListaPrecio;

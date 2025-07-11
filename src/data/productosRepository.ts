@@ -1,8 +1,8 @@
 import db from '../db/db.config';
 import { Adicional } from '../models/Adicional';
 import { Categoria } from '../models/Categoria';
-import { ProductosAdicionales } from '../models/ProductosAdicionales';
-import { ProductosPrecios } from '../models/ProductosPrecios';
+import { ProductoAdicional } from '../models/ProductoAdicional';
+import { ProductoPrecio } from '../models/ProductoPrecio';
 import { Producto } from '../models/Producto';
 import { ListaPrecio } from '../models/ListaPrecio';
 
@@ -94,7 +94,7 @@ class ProductoRepository{
             await connection.beginTransaction();
 
             //#region INSERTAR PRODUCTO
-            const consulta = `INSERT INTO producto(idCategoria,nombre,tipo,imagen,cantidad,descripcion)
+            const consulta = `INSERT INTO productos(idCategoria,nombre,tipo,imagen,cantidad,descripcion)
                               VALUES(?,?,?,?,?,?)`;
 
             const parametros = 
@@ -111,14 +111,16 @@ class ProductoRepository{
             //#endregion
             
             //Insertamos los precios
-            await connection.query("DELETE FROM productos_precios WHERE idProducto = ?", [data.id]);
+            await connection.query("DELETE FROM productos_precio WHERE idProducto = ?", [data.id]);
             for (const precio of data.precios!) {
+                precio.idProducto = data.id;
                 InsertPrecioProducto(connection, precio);                
             };
 
             //Insertamos adicionales
             await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [data.id]);
             for (const adicional of data.adicionales!) {
+                adicional.idProducto = data.id;
                 InsertAdicionalProducto(connection, adicional);                
             };
 
@@ -135,9 +137,7 @@ class ProductoRepository{
 
     async Modificar(data:Producto): Promise<string>{
         const connection = await db.getConnection();
-
         try {
-            
             let existe = await ValidarExistencia(connection, data, true);
             if(existe)//Verificamos si ya existe un producto con el mismo nombre
                 return "Ya existe un producto con el mismo nombre.";
@@ -147,7 +147,7 @@ class ProductoRepository{
             await connection.beginTransaction();
 
             //#region MODIFICAR PRODUCTO.
-            const consulta = `UPDATE producto SET
+            const consulta = `UPDATE productos SET
                                 idCategoria = ?,
                                 nombre = ?,
                                 tipo = ?,
@@ -171,14 +171,16 @@ class ProductoRepository{
             //#endregion
 
             //Insertamos los precios
-            await connection.query("DELETE FROM productos_precios WHERE idProducto = ?", [data.id]);
+            await connection.query("DELETE FROM productos_precio WHERE idProducto = ?", [data.id]);
             for (const precio of data.precios!) {
+                precio.idProducto = data.id;
                 InsertPrecioProducto(connection, precio);                
             };
 
             //Insertamos adicionales
             await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [data.id]);
             for (const adicional of data.adicionales!) {
+                adicional.idProducto = data.id;
                 InsertAdicionalProducto(connection, adicional);                
             };
 
@@ -204,10 +206,10 @@ class ProductoRepository{
             await connection.beginTransaction();
 
             //Eliminamos los precios del producto
-            await connection.query("DELETE FROM productos_precios WHERE idProducto = ?", [id]);
+            await connection.query("DELETE FROM productos_precio WHERE idProducto = ?", [id]);
 
             //Eliminamos los adicionales del producto
-            await connection.query("DELETE FROM productos_adicionales WHERE idProducto = ?", [id]);
+            await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [id]);
 
             //Eliminamos el producto
             await connection.query("DELETE FROM productos WHERE id = ?", [id]);
@@ -243,8 +245,8 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         //#endregion
 
         // #region FILTROS
-        if (filtros.idVariedad != null && filtros.idVariedad != 0) 
-                filtro += " AND p.id = "+ filtros.idVariedad + " ";
+        if (filtros.idProducto != null && filtros.idProducto != 0) 
+                filtro += " AND p.id = "+ filtros.idProducto + " ";
         else{
             if (filtros.busqueda != null && filtros.busqueda != "") 
                 filtro += " AND (p.nombre LIKE '%"+ filtros.busqueda + "%') ";
@@ -252,7 +254,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
             if (filtros.tipo != null && filtros.tipo != "")
                 filtro += " AND p.tipo = '"+ filtros.tipo + "' ";
         
-            if (filtros.rubro != null && filtros.rubro != "")
+            if (filtros.categoria != null && filtros.categoria != "")
                 filtro += " AND p.idCategoria = "+ filtros.categoria;
         }
         
@@ -297,19 +299,20 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
 //#region DETALLES DE PRODUCTO
 async function ObtenerPreciosProducto(connection, idProducto:number){
     try {
-        const consulta = " SELECT pp.*, COALESCE(lp.nombre, 'ELIMINADA') nombreLista FROM productos_precios pp " +
-                         " INNER JOIN listas_precio lp ON lp.id = pp.idListaPrecio "
-                         " WHERE idProducto = ?";
+        const consulta = " SELECT pp.*, COALESCE(lp.nombre, 'ELIMINADA') nombreLista FROM productos_precio pp " +
+                         " INNER JOIN listas_precio lp ON lp.id = pp.idListaPrecio " +
+                         " WHERE pp.idProducto = ?";
 
         const [rows] = await connection.query(consulta, [idProducto]);
 
-        const precios:Array<ProductosPrecios> = [];
+        const precios:Array<ProductoPrecio> = [];
 
         if (Array.isArray(rows)) {
             for (let i = 0; i < rows.length; i++) { 
                 const row = rows[i];
                 
-                let precio:ProductosPrecios = new ProductosPrecios({
+                let precio:ProductoPrecio = new ProductoPrecio({
+                    idProducto,
                     listaPrecio : new ListaPrecio({
                         id: row['idListaPrecio'],
                         nombre: row['nombreLista']
@@ -333,18 +336,19 @@ async function ObtenerPreciosProducto(connection, idProducto:number){
 
 async function ObtenerAdicionalesProducto(connection, idProducto:number){
     try {
-        const consulta = " SELECT pa.idAdicional, pa.recargo, COALESCE(a.descripcion, 'ELIMINADO') adicional FROM productos_adicionales pa " +
-                         " LEFT JOIN adicionales a on a.id = pa.idAdicional"
+        const consulta = " SELECT pa.idAdicional, pa.recargo, COALESCE(a.descripcion, 'ELIMINADO') adicional FROM productos_adicional pa " +
+                         " LEFT JOIN adicionales a on a.id = pa.idAdicional" +
                          " WHERE pa.idProducto = ? ";
 
         const [rows] = await connection.query(consulta, [idProducto]);
-        const adicionales:ProductosAdicionales[] = [];
+        const adicionales:ProductoAdicional[] = [];
 
         if (Array.isArray(rows)) {
             for (let i = 0; i < rows.length; i++) { 
                 const row = rows[i];
                 
-                let adicionalProducto:ProductosAdicionales = new ProductosAdicionales({
+                let adicionalProducto:ProductoAdicional = new ProductoAdicional({
+                    idProducto,
                     adicional : new Adicional({
                         id: row['idAdicional'],
                         descripcion: row['adicional'],
@@ -363,9 +367,9 @@ async function ObtenerAdicionalesProducto(connection, idProducto:number){
     }
 }
 
-async function InsertPrecioProducto(connection, precioProducto:ProductosPrecios):Promise<void>{
+async function InsertPrecioProducto(connection, precioProducto:ProductoPrecio):Promise<void>{
     try {
-        const consulta = " INSERT INTO productos_precios(idProducto, idListaPrecio, descripcion, costo, precio, mostrarDesc) " +
+        const consulta = " INSERT INTO productos_precio(idProducto, idListaPrecio, descripcion, costo, precio, mostrarDesc) " +
                          " VALUES(?, ?, ?, ?, ?, ?) ";
 
         const parametros = [
@@ -383,9 +387,9 @@ async function InsertPrecioProducto(connection, precioProducto:ProductosPrecios)
     }
 }
 
-async function InsertAdicionalProducto(connection, adicionalProducto:ProductosAdicionales):Promise<void>{
+async function InsertAdicionalProducto(connection, adicionalProducto:ProductoAdicional):Promise<void>{
     try {
-        const consulta = " INSERT INTO productos_adicionales(idProducto, idAdicional, recargo) " +
+        const consulta = " INSERT INTO productos_adicional(idProducto, idAdicional, recargo) " +
                          " VALUES(?, ?, ?) ";
 
         const parametros = [
