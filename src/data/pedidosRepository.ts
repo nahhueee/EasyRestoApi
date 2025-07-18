@@ -66,7 +66,6 @@ class PedidosRepository{
         pedido.hora = row['hora'];
         pedido.obs = row['obs'];
         pedido.cliente = row['cliente'];
-        pedido.total = row['total'];
         pedido.finalizado = row['finalizado'];
         
         //Obtiene la lista de detalles del pedido
@@ -74,8 +73,12 @@ class PedidosRepository{
 
         pedido.responsable = new Usuario({id: row['idResponsable'], nombre: row['responsable']});
         pedido.mesa = new Mesa({id: row['idMesa'], codigo: row['codigoMesa']});
-        pedido.tipo = new TipoPedido({id: row['idTipo'], codigo: row['tipo']});
+        pedido.tipo = new TipoPedido({id: row['idTipo'], nombre: row['tipo']});
 
+        //Obtenemos la suma total del pedido
+        pedido.total = pedido.detalles.reduce((accum, detalle) => {
+            return accum + detalle.total!;
+        }, 0);
 
         pedido.pago = new PedidoPago({
             efectivo: parseFloat(row['efectivo']), 
@@ -105,7 +108,7 @@ class PedidosRepository{
     //#region ABM
     async Agregar(pedido:Pedido): Promise<string>{
         const connection = await db.getConnection();
-        
+
         try {
             //Obtenemos el proximo nro de pedido a insertar
             pedido.id = await ObtenerUltimoPedido(connection);
@@ -137,7 +140,7 @@ class PedidosRepository{
 
     async Modificar(pedido:Pedido): Promise<string>{
         const connection = await db.getConnection();
-        
+        console.log(pedido)
         try {
             //Iniciamos una transaccion
             await connection.beginTransaction();
@@ -195,7 +198,7 @@ class PedidosRepository{
             for (const element of  pedido.detalles!) {
                 const signo = pedido.finalizado ? "-" : "+";
 
-                if(element.tipoProdVar == "Producto")
+                if(element.tipoProd == "terciarizado")
                     ActualizarInventario(connection, element, signo)
             };
 
@@ -299,10 +302,10 @@ async function ObtenerUltimoPedido(connection):Promise<number>{
 }
 async function InsertPedido(connection, pedido):Promise<void>{
     try {
-       const consulta = " INSERT INTO pedidos(idTipo,idResponsable,cliente,idMesa,fecha,hora,total,obs,finalizado) " +
-                        " VALUES(?,?,?,?,?,?,?,?,?) ";
+       const consulta = " INSERT INTO pedidos(idTipo,idResponsable,cliente,idMesa,fecha,hora,obs,finalizado) " +
+                        " VALUES(?,?,?,?,?,?,?,?) ";
 
-        const parametros = [pedido.tipoPedido.id, pedido.responsable.id, pedido.cliente, pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.total, pedido.obs, 0];
+        const parametros = [pedido.tipo.id, pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, 0];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -343,12 +346,11 @@ async function UpdatePedido(connection, pedido):Promise<void>{
                             idMesa = ?,
                             fecha = ?,
                             hora = ?,
-                            total = ?,
                             obs = ?
                           WHERE id = ?`;
                               
 
-        const parametros = [pedido.tipoPedido.id,pedido.responsable.id, pedido.cliente, pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.total, pedido.obs, pedido.id];
+        const parametros = [pedido.tipo.id,pedido.responsable.id, pedido.cliente, pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.id];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -375,11 +377,11 @@ async function ObtenerDetallePedido(connection, idVenta:number){
                 detalle.id = row['id'];
                 detalle.idPedido = row['idPedido'];
                 detalle.cantidad = row['cantidad'];
+                detalle.costo = parseFloat(row['costo']);
                 detalle.unitario = parseFloat(row['unitario']);
                 detalle.total = parseFloat(row['total']);
-                detalle.productoVariedad = row['prodVar'];
-                detalle.tipoProdVar = row['tipoProdVar'];
-                detalle.idProdVar = row['idProdVar'];
+                detalle.producto = row['descripcion'];
+                detalle.idProducto = row['idProducto'];
                 detalle.obs = row['obs'];
                 detalles.push(detalle)
               }
@@ -394,10 +396,10 @@ async function ObtenerDetallePedido(connection, idVenta:number){
 
 async function InsertDetallePedido(connection, detalle):Promise<void>{
     try {
-        const consulta = " INSERT INTO pedidos_detalle(idPedido, idProdVar, prodVar, tipoProdVar, cantidad, unitario, total, obs) " +
+        const consulta = " INSERT INTO pedidos_detalle(idPedido, idProducto, descripcion, cantidad, costo, unitario, total, obs) " +
                          " VALUES(?, ?, ?, ?, ?, ?, ?, ?) ";
 
-        const parametros = [detalle.idPedido, detalle.idProdVar, detalle.productoVariedad, detalle.tipoProdVar, detalle.cantidad, detalle.unitario, detalle.total, detalle.obs];
+        const parametros = [detalle.idPedido, detalle.idProducto, detalle.producto, detalle.cantidad, detalle.costo, detalle.unitario, detalle.total, detalle.obs];
         await connection.query(consulta, parametros);
         
     } catch (error) {

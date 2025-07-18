@@ -135,6 +135,7 @@ CREATE TABLE pedidos_detalle (
     idProducto INT,
     descripcion VARCHAR(100),
     cantidad INT,
+    costo DECIMAL(10,2),
     unitario DECIMAL(10,2),
     total DECIMAL(10,2),
     obs VARCHAR(150),
