@@ -54,14 +54,22 @@ CREATE TABLE categorias (
     favorita BOOLEAN
 );
 
+DROP TABLE IF EXISTS salones;
+CREATE TABLE salones (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    descripcion VARCHAR(20),
+    orden INT
+);
+
+
 DROP TABLE IF EXISTS mesas;
 CREATE TABLE mesas (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    idSalon INT,
     codigo VARCHAR(8),
-    disponible BOOLEAN,
-    icono VARCHAR(150),
-    combinada VARCHAR(10),
-    principal BOOLEAN
+    idPedido INT DEFAULT 0,
+    combinada VARCHAR(10) DEFAULT '',
+    principal BOOLEAN DEFAULT 1
 );
 
 DROP TABLE IF EXISTS adicionales;
@@ -194,6 +202,7 @@ INSERT INTO tipos_pago(id, nombre) VALUES (NULL,'EFECTIVO'), (NULL,'TARJETA'), (
 INSERT INTO cargos(id, nombre) VALUES (NULL,'ADMINISTRADOR'), (NULL,'EMPLEADO');
 INSERT INTO roles(id, nombre) VALUES (NULL,'ENCARGADO'), (NULL,'CAJERO'), (NULL,'MOZO'), (NULL,'DELIVERY');
 INSERT INTO categorias(id, nombre, icono, favorita) VALUES (NULL,'SIN ASIGNAR', '🔺', 0);
-INSERT INTO mesas(id, codigo) VALUES (NULL,'NINGUNA');
+INSERT INTO salones(id, descripcion, orden) VALUES (NULL,'PRINCIPAL',1);
+INSERT INTO mesas(id, codigo, idSalon) VALUES (NULL,'NINGUNA', 0);
 INSERT INTO usuarios(id, nombre, email, pass, idCargo, idRol) VALUES (NULL, 'ADMIN', NULL, '1235', 1, 1);
 INSERT INTO pedidos_tipo (id, nombre, icono) VALUES (NULL, 'RESTAURANTE', 'restaurant'), (NULL, 'RETIRA', 'hail'), (NULL, 'DELIVERY', 'local_shipping');

@@ -125,6 +125,11 @@ class PedidosRepository{
                 InsertDetallePedido(connection, element);
             };
 
+            //Marcamos la mesa como no disponible
+            if(pedido.mesa?.id != 1){
+                await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]);
+            }
+
             //Mandamos la transaccion
             await connection.commit();
             return "OK";
@@ -140,7 +145,7 @@ class PedidosRepository{
 
     async Modificar(pedido:Pedido): Promise<string>{
         const connection = await db.getConnection();
-        console.log(pedido)
+
         try {
             //Iniciamos una transaccion
             await connection.beginTransaction();
@@ -156,6 +161,12 @@ class PedidosRepository{
                 element.idPedido = pedido.id;
                 InsertDetallePedido(connection, element);
             };
+
+            //Marcamos la mesa como no disponible
+            if(pedido.mesa?.id != 1){
+                await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); //Desmarcamos la anterior
+                await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]); //Marcamos la nueva
+            }
 
             //Mandamos la transaccion
             await connection.commit();
@@ -202,6 +213,11 @@ class PedidosRepository{
                     ActualizarInventario(connection, element, signo)
             };
 
+            //Marcamos la mesa como disponible
+            if(pedido.mesa?.id != 1){
+                await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); 
+            }
+
             //Mandamos la transaccion
             await connection.commit();
             return "OK";
@@ -234,6 +250,9 @@ class PedidosRepository{
         const connection = await db.getConnection();
         
         try {
+            //Marcamos la mesa como disponible
+            await connection.query("UPDATE mesas SET idPedido = 0 WHERE idPedido = ?", [id]); 
+
             await connection.query("UPDATE pedidos SET fechaBaja = ? WHERE id = ?", [new Date(), id]);
             return "OK";
 
@@ -314,7 +333,7 @@ async function InsertPedido(connection, pedido):Promise<void>{
 }
 async function InsertPagoPedido(connection, pago):Promise<void>{
     try {
-        const consulta = " INSERT INTO pedidos_pago(idPedido, idPago, efectivo, digital, recargo, descuento, realizado) " +
+        const consulta = " INSERT INTO pedidos_pago(idPedido, idTPago, efectivo, digital, recargo, descuento, realizado) " +
                          " VALUES(?, ?, ?, ?, ?, ?, ?) ";
 
         const parametros = [pago.idPedido, pago.tipoPago.id, pago.efectivo, pago.digital, pago.recargo, pago.descuento, pago.realizado];
@@ -350,7 +369,7 @@ async function UpdatePedido(connection, pedido):Promise<void>{
                           WHERE id = ?`;
                               
 
-        const parametros = [pedido.tipo.id,pedido.responsable.id, pedido.cliente, pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.id];
+        const parametros = [pedido.tipo.id,pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.id];
         await connection.query(consulta, parametros);
         
     } catch (error) {

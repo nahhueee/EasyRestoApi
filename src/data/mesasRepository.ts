@@ -1,34 +1,41 @@
 import db from '../db/db.config';
+import { Mesa } from '../models/Mesa';
 
 class MesasRepository{
 
     //#region OBTENER
-    async Obtener(filtros:any){
+    async Obtener(idSalon:string){
         const connection = await db.getConnection();
         
         try {
-             //Obtengo la query segun los filtros
-            let queryRegistros = await ObtenerQuery(filtros,false);
-            let queryTotal = await ObtenerQuery(filtros,true);
+            let consulta = "";
 
-            //Obtengo la lista de registros y el total
-            const rows = await connection.query(queryRegistros);
-            const resultado = await connection.query(queryTotal);
+            if(idSalon != '0'){
+                consulta = "SELECT * FROM mesas WHERE idSalon = ?";
+            }else{
+                consulta = " SELECT m.id, CONCAT(s.descripcion, ' - ', m.codigo) codigo  FROM mesas m " + 
+                           " INNER JOIN salones s on s.id = m.idSalon ";
+            }
 
-            return {total:resultado[0][0].total, registros:rows[0]};
+            const [rows] = await connection.query(consulta, [idSalon]);
 
-        } catch (error:any) {
-            throw error;
-        } finally{
-            connection.release();
-        }
-    }
+            const mesas:Mesa[] = [];
+                       
+            if (Array.isArray(rows)) {
+                for (let i = 0; i < rows.length; i++) { 
+                    const row = rows[i];
 
-    async MesasSelector(){
-        const connection = await db.getConnection();
-        
-        try {
-            const [rows] = await connection.query('SELECT id, codigo FROM mesas');
+                    let mesa:Mesa = new Mesa();
+                    mesa.id = row['id'];
+                    mesa.codigo = row['codigo'];
+                    mesa.idSalon = row['idSalon'];
+                    mesa.idPedido = row['idPedido'];
+                    mesa.principal = row['principal'] == 1 ? true : false;
+                    mesa.combinada = row['combinada'];
+                            
+                    mesas.push(mesa);
+                }
+            }
             return [rows][0];
 
         } catch (error:any) {
@@ -43,14 +50,14 @@ class MesasRepository{
     //#region ABM
     async Agregar(data:any): Promise<string>{
         const connection = await db.getConnection();
-        
+
         try {
             let existe = await ValidarExistencia(connection, data, false);
             if(existe)//Verificamos si ya existe una mesa con el mismo nombre 
                 return "Ya existe una mesa con el mismo codigo.";
             
-            const consulta = "INSERT INTO mesas(codigo) VALUES (?)";
-            const parametros = [data.codigo.toUpperCase()];
+            const consulta = "INSERT INTO mesas(codigo, idSalon) VALUES (?, ?)";
+            const parametros = [data.codigo.toUpperCase(), data.idSalon];
             
             await connection.query(consulta, parametros);
             return "OK";
@@ -70,11 +77,22 @@ class MesasRepository{
             if(existe)//Verificamos si ya existe una mesa con el mismo nombre
                 return "Ya existe una mesa con el mismo codigo.";
             
-                const consulta = `UPDATE rubros 
-                SET nombre = ?
+                const consulta = `UPDATE mesas 
+                SET codigo = ?,
+                    idSalon = ?,
+                    idPedido = ?,
+                    combinada = ?,
+                    principal = ?
                 WHERE id = ? `;
 
-            const parametros = [data.nombre.toUpperCase(), data.id];
+            const parametros = [
+                                data.codigo.toUpperCase(), 
+                                data.idSalon, 
+                                data.idPedido, 
+                                data.combinada, 
+                                data.principal, 
+                                data.id
+                            ];
             await connection.query(consulta, parametros);
             return "OK";
 

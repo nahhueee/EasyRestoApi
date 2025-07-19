@@ -4,23 +4,12 @@ import logger from '../log/loggerGeneral';
 const router : Router  = Router();
 
 //#region OBTENER
-router.post('/obtener', async (req:Request, res:Response) => {
+router.get('/obtener/:id', async (req:Request, res:Response) => {
     try{ 
-        res.json(await MesasRepo.Obtener(req.body));
+        res.json(await MesasRepo.Obtener(req.params.id));
 
     } catch(error:any){
         let msg = "Error al obtener el listado de mesas.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
-    }
-});
-
-router.get('/selector', async (req:Request, res:Response) => {
-    try{ 
-        res.json(await MesasRepo.MesasSelector());
-
-    } catch(error:any){
-        let msg = "Error al obtener el selector de mesas.";
         logger.error(msg + " " + error.message);
         res.status(500).send(msg);
     }
