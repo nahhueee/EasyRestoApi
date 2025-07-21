@@ -13,7 +13,8 @@ class MesasRepository{
             if(idSalon != '0'){
                 consulta = "SELECT * FROM mesas WHERE idSalon = ?";
             }else{
-                consulta = " SELECT m.id, CONCAT(s.descripcion, ' - ', m.codigo) codigo  FROM mesas m " + 
+                consulta = " SELECT m.id, CASE WHEN m.combinada <> '' THEN CONCAT(s.descripcion, ' | ', m.combinada) ELSE CONCAT(s.descripcion, ' | ', m.codigo) END AS codigo " +
+                           " FROM mesas m " +
                            " INNER JOIN salones s on s.id = m.idSalon ";
             }
 
@@ -30,6 +31,7 @@ class MesasRepository{
                     mesa.codigo = row['codigo'];
                     mesa.idSalon = row['idSalon'];
                     mesa.idPedido = row['idPedido'];
+                    mesa.codGrupo = row['codGrupo'];
                     mesa.principal = row['principal'] == 1 ? true : false;
                     mesa.combinada = row['combinada'];
                             

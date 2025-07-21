@@ -67,6 +67,7 @@ CREATE TABLE mesas (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     idSalon INT,
     codigo VARCHAR(8),
+    codGrupo CHAR(36) DEFAULT '',
     idPedido INT DEFAULT 0,
     combinada VARCHAR(10) DEFAULT '',
     principal BOOLEAN DEFAULT 1
