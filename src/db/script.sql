@@ -27,64 +27,93 @@ CREATE TABLE backups (
 DROP TABLE IF EXISTS usuarios;
 CREATE TABLE usuarios (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(100),
+    nombre VARCHAR(50),
     email VARCHAR(100),
     pass VARCHAR(30),
-    idCargo INT
-);
-
-DROP TABLE IF EXISTS mesas;
-CREATE TABLE mesas (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    codigo VARCHAR(50)
+    idCargo INT,
+    idRol INT
 );
 
 DROP TABLE IF EXISTS cargos;
 CREATE TABLE cargos (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(50)
+    nombre VARCHAR(20)
 );
 
-DROP TABLE IF EXISTS rubros;
-CREATE TABLE rubros (
+DROP TABLE IF EXISTS roles;
+CREATE TABLE roles (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(100)
+    nombre VARCHAR(20)
 );
 
-DROP TABLE IF EXISTS producto_variedad;
-CREATE TABLE producto_variedad (
+DROP TABLE IF EXISTS categorias;
+CREATE TABLE categorias (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    idRubro INT,
-    nombre VARCHAR(100),
-    tipo VARCHAR(10),
+    nombre VARCHAR(20),
+    icono VARCHAR(2),
+    favorita BOOLEAN
+);
+
+DROP TABLE IF EXISTS salones;
+CREATE TABLE salones (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    descripcion VARCHAR(20),
+    orden INT
+);
+
+
+DROP TABLE IF EXISTS mesas;
+CREATE TABLE mesas (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    idSalon INT,
+    codigo VARCHAR(8),
+    codGrupo CHAR(36) DEFAULT '',
+    idPedido INT DEFAULT 0,
+    combinada VARCHAR(10) DEFAULT '',
+    principal BOOLEAN DEFAULT 1
+);
+
+DROP TABLE IF EXISTS adicionales;
+CREATE TABLE adicionales (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    descripcion VARCHAR(30)
+);
+
+DROP TABLE IF EXISTS listas_precio;
+CREATE TABLE listas_precio (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(30)
+);
+
+DROP TABLE IF EXISTS productos;
+CREATE TABLE productos (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    tipo VARCHAR(15),
+    nombre VARCHAR(80),
+    idCategoria INT,
+    cantidad INT,
     imagen VARCHAR(250),
+    descripcion VARCHAR(130)
+)ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS productos_adicional;
+CREATE TABLE productos_adicional (
+    idProducto INT,
+    idAdicional INT,
+    recargo DECIMAL(5,2),
+    PRIMARY KEY(idProducto,idAdicional)
+)ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS productos_precio;
+CREATE TABLE productos_precio (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    idProducto INT,
+    idListaPrecio INT,
+    descripcion VARCHAR(15),
     costo DECIMAL(10,2),
-    pLocal DECIMAL(10,2),
-    pDelivery DECIMAL(10,2),
-    cantidad DECIMAL(5,2)
-)
-ENGINE=InnoDB;
-
-DROP TABLE IF EXISTS variedad_variante;
-CREATE TABLE variedad_variante (
-    idProdVar INT,
-    nombre VARCHAR(100),
-    costo DECIMAL(10,2),
-    pLocal DECIMAL(10,2),
-    pDelivery DECIMAL(10,2),
-
-    PRIMARY KEY(idProdVar,nombre)
-);
-ENGINE=InnoDB;
-
-DROP TABLE IF EXISTS variedad_guarnicion;
-CREATE TABLE variedad_guarnicion (
-    idProdVar INT,
-    idGuarnicion INT
-
-    PRIMARY KEY(idProdVar, idGuarnicion)
-);
-ENGINE=InnoDB;
+    precio DECIMAL(10,2),
+    mostrarDesc BOOLEAN
+)ENGINE=InnoDB;
 
 DROP TABLE IF EXISTS pedidos;
 CREATE TABLE pedidos (
@@ -92,12 +121,12 @@ CREATE TABLE pedidos (
     idTipo INT,
     idResponsable INT,
     idMesa INT,
-    cliente VARCHAR(35),
+    cliente VARCHAR(30),
     fecha DATE,
     fechaBaja DATE,
     hora VARCHAR(5),
-    total DECIMAL(10,2),
     obs VARCHAR(200),
+    total DECIMAL(10,2)
     finalizado BOOLEAN
 )
 ENGINE=InnoDB;
@@ -105,24 +134,24 @@ ENGINE=InnoDB;
 DROP TABLE IF EXISTS pedidos_tipo;
 CREATE TABLE pedidos_tipo (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(10)
+    nombre VARCHAR(15),
+    icono VARCHAR(20)
 );
 
 DROP TABLE IF EXISTS pedidos_detalle;
 CREATE TABLE pedidos_detalle (
     id INT UNSIGNED AUTO_INCREMENT,
     idPedido INT,
-    idProdVar INT,
-    prodVar VARCHAR(100),
-    tipoProdVar VARCHAR(10),
+    idProducto INT,
+    descripcion VARCHAR(100),
     cantidad INT,
+    costo DECIMAL(10,2),
     unitario DECIMAL(10,2),
     total DECIMAL(10,2),
     obs VARCHAR(150),
     
     PRIMARY KEY(id,idPedido)
-)
-ENGINE=InnoDB;
+)ENGINE=InnoDB;
 
 DROP TABLE IF EXISTS pedidos_factura;
 CREATE TABLE pedidos_factura (
@@ -135,21 +164,20 @@ CREATE TABLE pedidos_factura (
     iva DECIMAL(10,2),
     dni BIGINT,
     tipoDni INT,
-    ptoVenta INT
-)
-ENGINE=InnoDB;
+    ptoVenta INT,
+    condReceptor INT DEFAULT 0
+)ENGINE=InnoDB;
 
 DROP TABLE IF EXISTS pedidos_pago;
 CREATE TABLE pedidos_pago (
     idPedido INT PRIMARY KEY,
-    idPago INT,
+    idTPago INT,
     efectivo DECIMAL(10,2),
     digital DECIMAL(10,2),
     descuento DECIMAL(4,2),
     recargo DECIMAL(4,2),
     realizado BOOLEAN
-)
-ENGINE=InnoDB;
+)ENGINE=InnoDB;
 
 DROP TABLE IF EXISTS tipos_pago;
 CREATE TABLE tipos_pago (
@@ -159,7 +187,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.2.1'),
+('version','1.5.0'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 
@@ -171,9 +199,12 @@ VALUES
 INSERT INTO parametros_facturacion(condicion, puntoVta, cuil, razon, direccion) 
 VALUES ('monotributista', 0, 0, '', '');
 
+INSERT INTO listas_precio(id, nombre) VALUES (NULL,'RESTAURANT'), (NULL,'PARA LLEVAR');
 INSERT INTO tipos_pago(id, nombre) VALUES (NULL,'EFECTIVO'), (NULL,'TARJETA'), (NULL,'TRANSFERENCIA'), (NULL,'COMBINADO');
 INSERT INTO cargos(id, nombre) VALUES (NULL,'ADMINISTRADOR'), (NULL,'EMPLEADO');
-INSERT INTO rubros(id, nombre) VALUES (NULL,'SIN ASIGNAR');
-INSERT INTO mesas(id, codigo) VALUES (NULL,'NINGUNA');
-INSERT INTO usuarios(id, nombre, email, pass, idCargo) VALUES (NULL, 'ADMIN', NULL, '1235', 1);
-INSERT INTO pedidos_tipo (id, nombre) VALUES (NULL, 'RESTAURANT'), (NULL, 'DELIVERY');
+INSERT INTO roles(id, nombre) VALUES (NULL,'ENCARGADO'), (NULL,'CAJERO'), (NULL,'MOZO'), (NULL,'DELIVERY');
+INSERT INTO categorias(id, nombre, icono, favorita) VALUES (NULL,'SIN ASIGNAR', '🔺', 0);
+INSERT INTO salones(id, descripcion, orden) VALUES (NULL,'PRINCIPAL',1);
+INSERT INTO mesas(id, codigo, idSalon) VALUES (NULL,'NINGUNA', 0);
+INSERT INTO usuarios(id, nombre, email, pass, idCargo, idRol) VALUES (NULL, 'ADMIN', NULL, '1235', 1, 1);
+INSERT INTO pedidos_tipo (id, nombre, icono) VALUES (NULL, 'RESTAURANTE', 'restaurant'), (NULL, 'RETIRA', 'hail'), (NULL, 'DELIVERY', 'local_shipping');

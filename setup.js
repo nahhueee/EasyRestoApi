@@ -30,7 +30,6 @@ async function setup() {
       ".env",
       "knexfile.js",
       "src/db/script.sql",
-      "src/db/script.sql",
     ];
 
     //Archivo de configuracion dependiendo el entorno

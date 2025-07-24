@@ -73,7 +73,7 @@ class ListasPrecioRepository{
                 SET nombre = ?
                 WHERE id = ? `;
 
-            const parametros = [data.descripcion.toUpperCase(), data.id];
+            const parametros = [data.nombre.toUpperCase(), data.id];
             await connection.query(consulta, parametros);
             return "OK";
 
