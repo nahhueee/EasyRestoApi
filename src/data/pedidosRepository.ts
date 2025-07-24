@@ -66,6 +66,7 @@ class PedidosRepository{
         pedido.hora = row['hora'];
         pedido.obs = row['obs'];
         pedido.cliente = row['cliente'];
+        pedido.total = row['total'];
         pedido.finalizado = row['finalizado'];
         
         //Obtiene la lista de detalles del pedido
@@ -74,11 +75,6 @@ class PedidosRepository{
         pedido.responsable = new Usuario({id: row['idResponsable'], nombre: row['responsable']});
         pedido.mesa = new Mesa({id: row['idMesa'], codigo: row['codigoMesa']});
         pedido.tipo = new TipoPedido({id: row['idTipo'], nombre: row['tipo']});
-
-        //Obtenemos la suma total del pedido
-        pedido.total = pedido.detalles.reduce((accum, detalle) => {
-            return accum + detalle.total!;
-        }, 0);
 
         pedido.pago = new PedidoPago({
             efectivo: parseFloat(row['efectivo']), 
@@ -183,7 +179,7 @@ class PedidosRepository{
 
     async Finalizar(pedido:Pedido): Promise<string>{
         const connection = await db.getConnection();
-        console.log(pedido)
+
         try {
             //Iniciamos una transaccion
             await connection.beginTransaction();
@@ -321,10 +317,10 @@ async function ObtenerUltimoPedido(connection):Promise<number>{
 }
 async function InsertPedido(connection, pedido):Promise<void>{
     try {
-       const consulta = " INSERT INTO pedidos(idTipo,idResponsable,cliente,idMesa,fecha,hora,obs,finalizado) " +
-                        " VALUES(?,?,?,?,?,?,?,?) ";
+       const consulta = " INSERT INTO pedidos(idTipo,idResponsable,cliente,idMesa,fecha,hora,obs,total,finalizado) " +
+                        " VALUES(?,?,?,?,?,?,?,?,?) ";
 
-        const parametros = [pedido.tipo.id, pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, 0];
+        const parametros = [pedido.tipo.id, pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.total, 0];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -365,11 +361,12 @@ async function UpdatePedido(connection, pedido):Promise<void>{
                             idMesa = ?,
                             fecha = ?,
                             hora = ?,
-                            obs = ?
+                            obs = ?,
+                            total = ?
                           WHERE id = ?`;
                               
 
-        const parametros = [pedido.tipo.id,pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.id];
+        const parametros = [pedido.tipo.id,pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.total, pedido.id];
         await connection.query(consulta, parametros);
         
     } catch (error) {

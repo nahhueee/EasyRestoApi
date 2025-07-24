@@ -26,6 +26,7 @@ server.listen(app.get('port'), host, () => {
 });
 
 //#region Rutas
+import estadisticasRuta from './routes/estadisticasRoute';
 import actualizacionRuta from './routes/actualizacionRoute';
 import usuariosRuta from './routes/usuariosRoute';
 import categoriasRuta from './routes/categoriasRuta';
@@ -40,7 +41,8 @@ import listasRuta from './routes/listasPrecioRuta';
 import salonesRuta from './routes/salonesRoute';
 import miscRuta from './routes/miscRoute';
 
-app.use('/easyresto/update', actualizacionRuta)
+app.use('/easyresto/estadisticas', estadisticasRuta)
+app.use('/easyresto/update', actualizacionRuta);
 app.use('/easyresto/usuarios', usuariosRuta);
 app.use('/easyresto/categorias', categoriasRuta);
 app.use('/easyresto/productos', productosVariedadRuta);

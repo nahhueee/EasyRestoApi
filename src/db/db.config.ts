@@ -16,6 +16,12 @@ const conexion = {
 
 // Crear una pool de conexiones
 const pool = mysql.createPool(conexion);
+
+// Cada vez que obtenemos una nueva conexión del pool, seteamos el idioma
+pool.on('connection', (connection) => {
+    connection.query("SET lc_time_names = 'es_ES'");
+});
+
 export default pool;
 
 
