@@ -2,6 +2,7 @@
     "adminUrl": "https://creationserver.com/adminserver/",
     "produccion": false,
     "esServer": false,
+    "web": false,
     "port": 8000,
     "idApp": 2,
     "db": {

@@ -1,6 +1,7 @@
 {
     "adminUrl": "https://creationserver.com/adminserver/",
     "produccion": true,
+    "web": true,
     "port": 8000,
     "idApp": 2,
     "db": {

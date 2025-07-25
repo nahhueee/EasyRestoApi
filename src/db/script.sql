@@ -126,7 +126,7 @@ CREATE TABLE pedidos (
     fechaBaja DATE,
     hora VARCHAR(5),
     obs VARCHAR(200),
-    total DECIMAL(10,2)
+    total DECIMAL(10,2),
     finalizado BOOLEAN
 )
 ENGINE=InnoDB;
