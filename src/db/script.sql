@@ -49,7 +49,7 @@ CREATE TABLE roles (
 DROP TABLE IF EXISTS categorias;
 CREATE TABLE categorias (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(20),
+    nombre VARCHAR(30),
     icono VARCHAR(2),
     favorita BOOLEAN
 );
@@ -69,7 +69,7 @@ CREATE TABLE mesas (
     codigo VARCHAR(8),
     codGrupo CHAR(36) DEFAULT '',
     idPedido INT DEFAULT 0,
-    combinada VARCHAR(10) DEFAULT '',
+    combinada VARCHAR(30) DEFAULT '',
     principal BOOLEAN DEFAULT 1
 );
 
@@ -187,7 +187,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.5.0'),
+('version','1.5.1'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 
