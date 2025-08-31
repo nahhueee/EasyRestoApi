@@ -118,7 +118,7 @@ class UsuariosRepository{
                               email = ?,
                               pass = ?,
                               idCargo = ?,
-                              idRol = ?,
+                              idRol = ?
                               WHERE id = ? `;
 
             const parametros = [data.nombre.toUpperCase(), data.email, data.pass, data.cargo.id, data.rol.id, data.id];
@@ -180,7 +180,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
             
         //Arma la Query con el paginado y los filtros correspondientes
         query = count +
-            " SELECT u.*, c.nombre cargo " +
+            " SELECT u.*, c.nombre cargo, r.nombre rol " +
             " FROM usuarios u " +
             " LEFT JOIN cargos c on c.id = u.idCargo " +
             " LEFT JOIN roles r on r.id = u.idRol " +
