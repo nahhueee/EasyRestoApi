@@ -4,9 +4,19 @@ import logger from '../log/loggerGeneral';
 const router : Router  = Router();
 
 //#region OBTENER
-router.post('/obtener', async (req:Request, res:Response) => {
+router.get('/obtener', async (req:Request, res:Response) => {
     try{ 
-        res.json(await RubrosRepo.Obtener(req.body));
+        res.json(await RubrosRepo.Obtener(""));
+
+    } catch(error:any){
+        let msg = "Error al obtener el listado de rubros.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+router.get('/obtener/:filtro', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await RubrosRepo.Obtener(req.params.filtro));
 
     } catch(error:any){
         let msg = "Error al obtener el listado de rubros.";

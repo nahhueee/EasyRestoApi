@@ -3,18 +3,23 @@ import db from '../db/db.config';
 class RubrosRepository{
 
     //#region OBTENER
-    async Obtener(filtros:any){
+    async Obtener(filtro:string){
         const connection = await db.getConnection();
         
         try {
-             //Obtengo la query segun los filtros
-            let queryRegistros = await ObtenerQuery(filtros,false);
-            let queryTotal = await ObtenerQuery(filtros,true);
+           
+            if(filtro != ""){
+                filtro = " AND nombre LIKE '%"+ filtro + "%' ";
+            }
 
-            //Obtengo la lista de registros y el total
-            const rows = await connection.query(queryRegistros);
-            const resultado = await connection.query(queryTotal);
-            return {total:resultado[0][0].total, registros:rows[0]};
+            let query = " SELECT * " +
+                        " FROM categorias " +
+                        " WHERE id <> 1 " +
+                        filtro +
+                        " ORDER BY orden DESC";
+
+            const [resultado] = await connection.query(query);
+            return [resultado][0];
 
         } catch (error:any) {
             throw error;
@@ -27,7 +32,7 @@ class RubrosRepository{
         const connection = await db.getConnection();
         
         try {
-            const [rows] = await connection.query('SELECT id, nombre, icono FROM categorias ORDER BY favorita DESC');
+            const [rows] = await connection.query('SELECT id, nombre, icono FROM categorias ORDER BY orden');
             return [rows][0];
 
         } catch (error:any) {
@@ -48,8 +53,8 @@ class RubrosRepository{
             if(existe)//Verificamos si ya existe una categoria con el mismo nombre 
                 return "Ya existe una categoria con el mismo nombre.";
             
-            const consulta = "INSERT INTO categorias(favorita, nombre, icono) VALUES (?, ?, ?)";
-            const parametros = [data.favorita ? 1 : 0, data.nombre.toUpperCase(), data.icono];
+            const consulta = "INSERT INTO categorias(orden, nombre, icono) VALUES (?, ?, ?)";
+            const parametros = [data.orden, data.nombre.toUpperCase(), data.icono];
             
             await connection.query(consulta, parametros);
             return "OK";
@@ -70,8 +75,7 @@ class RubrosRepository{
                 return "Ya existe una categoria con el mismo nombre.";
             
                 const consulta = `UPDATE categorias 
-                SET favorita = ?,
-                    nombre = ?,
+                SET nombre = ?,
                     icono = ?
                 WHERE id = ? `;
 
@@ -100,50 +104,6 @@ class RubrosRepository{
         }
     }
     //#endregion
-}
-
-async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
-    try {
-        //#region VARIABLES
-        let query:string;
-        let filtro:string = "";
-        let paginado:string = "";
-    
-        let count:string = "";
-        let endCount:string = "";
-        //#endregion
-
-        // #region FILTROS
-        if (filtros.busqueda != null && filtros.busqueda != "") 
-            filtro += " AND nombre LIKE '%"+ filtros.busqueda + "%' ";
-        // #endregion
-
-        if (esTotal)
-        {//Si esTotal agregamos para obtener un total de la consulta
-            count = "SELECT COUNT(*) AS total FROM ( ";
-            endCount = " ) as subquery";
-        }
-        else
-        {//De lo contrario paginamos
-            if (filtros.tamanioPagina != null)
-                paginado = " LIMIT " + filtros.tamanioPagina + " OFFSET " + ((filtros.pagina - 1) * filtros.tamanioPagina);
-        }
-            
-        //Arma la Query con el paginado y los filtros correspondientes
-        query = count +
-            " SELECT * " +
-            " FROM categorias " +
-            " WHERE id <> 1 " +
-            filtro +
-            " ORDER BY id DESC " +
-            paginado +
-            endCount;
-
-        return query;
-            
-    } catch (error) {
-        throw error; 
-    }
 }
 
 async function ValidarExistencia(connection, data:any, modificando:boolean):Promise<boolean>{
