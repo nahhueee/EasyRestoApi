@@ -375,13 +375,14 @@ async function UpdatePedido(connection, pedido):Promise<void>{
 }
 //#endregion
 
-//#region DETALLE VENTA
-async function ObtenerDetallePedido(connection, idVenta:number){
+//#region DETALLE PEDIDOS
+async function ObtenerDetallePedido(connection, idPedido:number){
     try {
-        const consulta = " SELECT pd.* FROM pedidos_detalle pd " +
+        const consulta = " SELECT pd.*, p.tipo FROM pedidos_detalle pd " +
+                         " INNER JOIN productos p ON p.id = pd.idProducto " +
                          " WHERE pd.idPedido = ?";
 
-        const [rows] = await connection.query(consulta, [idVenta]);
+        const [rows] = await connection.query(consulta, [idPedido]);
 
         const detalles:DetallePedido[] = [];
 
@@ -398,6 +399,7 @@ async function ObtenerDetallePedido(connection, idVenta:number){
                 detalle.total = parseFloat(row['total']);
                 detalle.producto = row['descripcion'];
                 detalle.idProducto = row['idProducto'];
+                detalle.tipoProd = row['tipo'];
                 detalle.obs = row['obs'];
                 detalles.push(detalle)
               }
@@ -452,7 +454,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         if (filtros.busqueda != null && filtros.busqueda != "") 
             filtro += " AND nombre LIKE '%"+ filtros.busqueda + "%' ";
 
-        if (filtros.idPedido != 0 && filtros.idPedido != null)
+        if (filtros.idPedido != "" && filtros.idPedido != null)
         {
             filtro += " AND p.id = " + filtros.idPedido;
         }

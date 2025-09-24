@@ -70,12 +70,15 @@ app.use('/easyresto/files', filesRoute);
 import backupRoute from './routes/backupRoute';
 import {BackupsServ} from './services/backupService';
 app.use('/easyresto/backup', backupRoute);
-BackupsServ.IniciarCron();
+
+if(!config.web)
+    BackupsServ.IniciarCron();
 //#endregion
 
 //Service Servidor
 import {ServidorServ} from './services/servidorService';
-ServidorServ.IniciarModoServidor();
+if(!config.web)
+    ServidorServ.IniciarModoServidor();
 
 //Index Route
 app.get('/easyresto', (req, res) => {
