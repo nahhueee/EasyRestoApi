@@ -73,6 +73,18 @@ router.put('/finalizar', async (req:Request, res:Response) => {
     }
 });
 
+router.put('/actualizar-impreso', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await PedidosRepo.ActualizarEstadoImpreso(req.body));
+
+    } catch(error:any){
+        let msg = "Error al intentar actualizar el estado impreso del pedido.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+
+
 router.delete('/eliminar/:id', async (req:Request, res:Response) => {
     try{ 
         res.json(await PedidosRepo.Eliminar(req.params.id));

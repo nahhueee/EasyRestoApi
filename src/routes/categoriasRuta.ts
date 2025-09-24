@@ -38,6 +38,17 @@ router.get('/selector', async (req:Request, res:Response) => {
 //#endregion
 
 //#region ABM
+router.put('/ordenar', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await RubrosRepo.Ordenar(req.body));
+
+    } catch(error:any){
+        let msg = "Error al intentar ordenar las categorias.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+
 router.post('/agregar', async (req:Request, res:Response) => {
     try{ 
         res.json(await RubrosRepo.Agregar(req.body));

@@ -16,6 +16,8 @@ export class Pedido {
     obs? : string;
     cliente? : string;
     finalizado?: number;
+    ticketImp?: string;
+    comandaImp?: string;
 
     pago? : PedidoPago;
     factura? : PedidoFactura;
@@ -28,6 +30,8 @@ export class Pedido {
         this.hora = data.hora;
         this.total = data.total;
         this.finalizado = data.finalizado;
+        this.ticketImp = data.ticketImp;
+        this.comandaImp = data.comandaImp;
         this.mesa = new Mesa(data.mesa);
         this.responsable = new Usuario(data.usuario);
         this.tipo = new TipoPedido(data.tipo);

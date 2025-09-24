@@ -68,6 +68,8 @@ class PedidosRepository{
         pedido.cliente = row['cliente'];
         pedido.total = row['total'];
         pedido.finalizado = row['finalizado'];
+        pedido.ticketImp = row['ticketImp'];
+        pedido.comandaImp = row['comandaImp'];
         
         //Obtiene la lista de detalles del pedido
         pedido.detalles = await ObtenerDetallePedido(connection, row['id']); 
@@ -221,6 +223,21 @@ class PedidosRepository{
         } catch (error:any) {
             //Si ocurre un error volvemos todo para atras
             await connection.rollback();
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
+    async ActualizarEstadoImpreso(data:any): Promise<string>{
+        const connection = await db.getConnection();
+        
+        try {
+            await connection.query("UPDATE pedidos SET ticketImp = ?, comandaImp = ? WHERE id = ?", [data.ticketImp, data.comandaImp, data.idPedido]);
+            return "OK";
+             
+        } catch (error:any) {
+            //Si ocurre un error volvemos todo para atras
             throw error;
         } finally{
             connection.release();

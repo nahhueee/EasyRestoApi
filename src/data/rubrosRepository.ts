@@ -16,7 +16,7 @@ class RubrosRepository{
                         " FROM categorias " +
                         " WHERE id <> 1 " +
                         filtro +
-                        " ORDER BY orden DESC";
+                        " ORDER BY orden ASC ";
 
             const [resultado] = await connection.query(query);
             return [resultado][0];
@@ -32,7 +32,7 @@ class RubrosRepository{
         const connection = await db.getConnection();
         
         try {
-            const [rows] = await connection.query('SELECT id, nombre, icono FROM categorias ORDER BY orden');
+            const [rows] = await connection.query('SELECT id, nombre, icono FROM categorias ORDER BY orden ASC');
             return [rows][0];
 
         } catch (error:any) {
@@ -45,6 +45,26 @@ class RubrosRepository{
     //#endregion
 
     //#region ABM
+    async Ordenar(data:any): Promise<string>{
+        const connection = await db.getConnection();
+        try {
+            
+            for (const [index, categoria] of data.entries()) {
+                await connection.query(
+                    "UPDATE categorias SET orden = ? WHERE id = ?",
+                    [index + 1, categoria.id]
+                );
+            }
+
+            return "OK";
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
     async Agregar(data:any): Promise<string>{
         const connection = await db.getConnection();
         

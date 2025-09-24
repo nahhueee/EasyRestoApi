@@ -127,7 +127,9 @@ CREATE TABLE pedidos (
     hora VARCHAR(5),
     obs VARCHAR(200),
     total DECIMAL(10,2),
-    finalizado BOOLEAN
+    finalizado BOOLEAN,
+    ticketImp VACHAR(15),
+    comandaImp VARCHAR(15)
 )
 ENGINE=InnoDB;
 
@@ -187,7 +189,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.6.0'),
+('version','1.6.1'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 
@@ -203,7 +205,7 @@ INSERT INTO listas_precio(id, nombre) VALUES (NULL,'RESTAURANT'), (NULL,'PARA LL
 INSERT INTO tipos_pago(id, nombre) VALUES (NULL,'EFECTIVO'), (NULL,'TARJETA'), (NULL,'TRANSFERENCIA'), (NULL,'COMBINADO');
 INSERT INTO cargos(id, nombre) VALUES (NULL,'ADMINISTRADOR'), (NULL,'EMPLEADO');
 INSERT INTO roles(id, nombre) VALUES (NULL,'ENCARGADO'), (NULL,'CAJERO'), (NULL,'MOZO'), (NULL,'DELIVERY');
-INSERT INTO categorias(id, nombre, icono, orden) VALUES (NULL,'SIN ASIGNAR', '🔺', 1);
+INSERT INTO categorias(id, nombre, icono, orden) VALUES (NULL,'SIN ASIGNAR', '🔺', 999);
 INSERT INTO salones(id, descripcion, orden) VALUES (NULL,'PRINCIPAL',1);
 INSERT INTO mesas(id, codigo, idSalon) VALUES (NULL,'NINGUNA', 0);
 INSERT INTO usuarios(id, nombre, email, pass, idCargo, idRol) VALUES (NULL, 'ADMIN', NULL, '1235', 1, 1);
