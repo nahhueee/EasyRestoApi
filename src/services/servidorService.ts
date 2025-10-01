@@ -19,6 +19,12 @@ class ServidorService {
 
 
           if(dniCliente!=""){
+            
+            //Verificamos que este conectado a internet
+            if (!navigator.onLine) {
+              return;
+            }
+            
             //Verificamos que el cliente este habilitado para usar este modo
             const habilitado = await AdminServ.ObtenerHabilitacion(dniCliente)
             if (!habilitado) {

@@ -109,7 +109,7 @@ CREATE TABLE productos_precio (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     idProducto INT,
     idListaPrecio INT,
-    descripcion VARCHAR(15),
+    descripcion VARCHAR(25),
     costo DECIMAL(10,2),
     precio DECIMAL(10,2),
     mostrarDesc BOOLEAN
@@ -189,7 +189,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.6.1'),
+('version','1.6.2'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 

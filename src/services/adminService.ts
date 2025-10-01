@@ -2,7 +2,7 @@ import config from '../conf/app.config';
 import FormData from 'form-data';
 import fs from 'fs';
 import axios from 'axios';
-
+import { ParametrosRepo } from '../data/parametrosRepository';
 
 class AdminService{
     
@@ -15,13 +15,20 @@ class AdminService{
         }
     }
 
-    async ObtenerHabilitacion(dni:string) {
+   async ObtenerHabilitacion(dni:string) {
         try {
             let mac = await GetMac();
             {
                 if(mac){
-                    const resutado = (await axios.get(`${config.adminUrl}appscliente/habilitado/${dni}/${config.idApp}/${mac}`)).data
-                    return resutado;
+                    const resultado = (await axios.get(`${config.adminUrl}appscliente/habilitado/${dni}/${config.idApp}/${mac}`)).data
+
+                    //Informamos la versión actual
+                    if(resultado){
+                        const versionLocal = await ParametrosRepo.ObtenerParametros('version');
+                        await axios.put(`${config.adminUrl}appscliente/informar`, {dni, idApp:config.idApp, version:versionLocal})
+                    }
+
+                    return resultado;
                 }
             }
         } catch (error) {

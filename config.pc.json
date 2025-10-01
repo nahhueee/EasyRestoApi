@@ -3,7 +3,7 @@
     "produccion": false,
     "esServer": false,
     "web": false,
-    "port": 8000,
+    "port": 7600,
     "idApp": 2,
     "db": {
         "host": "127.0.0.1",
