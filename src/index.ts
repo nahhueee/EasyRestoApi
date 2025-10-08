@@ -39,6 +39,8 @@ import mesasRuta from './routes/mesasRoute';
 import adicionalesRuta from './routes/adicionalesRoute';
 import listasRuta from './routes/listasPrecioRuta';
 import salonesRuta from './routes/salonesRoute';
+import cajasRuta from './routes/cajasRoute';
+import movimientosRuta from './routes/movimientosRoute';
 import miscRuta from './routes/miscRoute';
 
 app.use('/easyresto/estadisticas', estadisticasRuta)
@@ -54,6 +56,8 @@ app.use('/easyresto/mesas', mesasRuta);
 app.use('/easyresto/adicionales', adicionalesRuta);
 app.use('/easyresto/listas-precio', listasRuta);
 app.use('/easyresto/salones', salonesRuta);
+app.use('/easyresto/cajas', cajasRuta);
+app.use('/easyresto/movimientos', movimientosRuta);
 app.use('/easyresto/misc', miscRuta);
 
 

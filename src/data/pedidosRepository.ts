@@ -501,7 +501,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         //Arma la Query con el paginado y los filtros correspondientes
         query = count +
                 " SELECT p.*, " +
-                " tp.nombre tipo, COALESCE(u.nombre, 'ELIMINADO') responsable, COALESCE(m.codigo, 'ELIMINADA') codigoMesa, " + //Varios
+                " tp.nombre tipo, COALESCE(u.nombre, 'NO SELECCIONADO') responsable, COALESCE(m.codigo, 'NO SELECCIONADA') codigoMesa, " + //Varios
                 " tpag.id idTipoPago, tpag.nombre tipoPago, pp.realizado, pp.efectivo, pp.digital, pp.recargo, pp.descuento, " + //Pago
                 " pfac.cae, pfac.caeVto, pfac.ticket, pfac.tipoFactura, pfac.neto, pfac.iva, pfac.dni, pfac.tipoDni, pfac.ptoVenta " + //Factura
                 " FROM pedidos p " +

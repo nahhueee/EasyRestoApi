@@ -115,6 +115,30 @@ CREATE TABLE productos_precio (
     mostrarDesc BOOLEAN
 )ENGINE=InnoDB;
 
+DROP TABLE IF EXISTS cajas;
+CREATE TABLE cajas (
+    id INT PRIMARY KEY,
+    idResponsable INT,
+    fecha DATE,
+    hora VARCHAR(5),
+    fechaBaja DATE,
+    inicial DECIMAL(10,2),
+    ventas DECIMAL(10,2),
+    entradas DECIMAL(10,2),
+    salidas DECIMAL(10,2),
+    finalizada BOOLEAN
+)
+ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS cajas_movimientos;
+CREATE TABLE cajas_movimientos (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    idCaja INT,
+    tipoMovimiento VARCHAR(10),
+    monto DECIMAL(10,2),
+    descripcion VARCHAR(150)
+);
+
 DROP TABLE IF EXISTS pedidos;
 CREATE TABLE pedidos (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
