@@ -142,6 +142,7 @@ CREATE TABLE cajas_movimientos (
 DROP TABLE IF EXISTS pedidos;
 CREATE TABLE pedidos (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    idCaja INT DEFAULT 0,
     idTipo INT,
     idResponsable INT,
     idMesa INT,
@@ -152,8 +153,8 @@ CREATE TABLE pedidos (
     obs VARCHAR(200),
     total DECIMAL(10,2),
     finalizado BOOLEAN,
-    ticketImp VACHAR(15),
-    comandaImp VARCHAR(15)
+    ticketImp VARCHAR(15) DEFAULT '',
+    comandaImp VARCHAR(15) DEFAULT ''
 )
 ENGINE=InnoDB;
 
@@ -213,7 +214,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.6.2'),
+('version','1.7.0'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 

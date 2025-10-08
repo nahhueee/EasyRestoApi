@@ -7,6 +7,7 @@ import { Usuario } from "./Usuario";
 
 export class Pedido {
     id? : number;
+    idCaja? : number;
     tipo?: TipoPedido;
     fecha? : Date;
     hora? : string;

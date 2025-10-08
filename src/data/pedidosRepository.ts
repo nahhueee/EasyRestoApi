@@ -62,6 +62,7 @@ class PedidosRepository{
     async ArmarObjetoPedido(connection, row){
         let pedido:Pedido = new Pedido();
         pedido.id = row['id'];
+        pedido.idCaja = row['idCaja'];
         pedido.fecha = row['fecha'];
         pedido.hora = row['hora'];
         pedido.obs = row['obs'];
@@ -334,10 +335,10 @@ async function ObtenerUltimoPedido(connection):Promise<number>{
 }
 async function InsertPedido(connection, pedido):Promise<void>{
     try {
-       const consulta = " INSERT INTO pedidos(idTipo,idResponsable,cliente,idMesa,fecha,hora,obs,total,finalizado) " +
-                        " VALUES(?,?,?,?,?,?,?,?,?) ";
+       const consulta = " INSERT INTO pedidos(idCaja,idTipo,idResponsable,cliente,idMesa,fecha,hora,obs,total,finalizado) " +
+                        " VALUES(?,?,?,?,?,?,?,?,?,?) ";
 
-        const parametros = [pedido.tipo.id, pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.total, 0];
+        const parametros = [pedido.idCaja, pedido.tipo.id, pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.total, 0];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -372,6 +373,7 @@ async function InsertFacturaPedido(connection, factura):Promise<void>{
 async function UpdatePedido(connection, pedido):Promise<void>{
     try {
        const consulta = `UPDATE pedidos SET
+                            idCaja = ?,
                             idtipo = ?,
                             idResponsable = ?,
                             cliente = ?,
@@ -383,7 +385,7 @@ async function UpdatePedido(connection, pedido):Promise<void>{
                           WHERE id = ?`;
                               
 
-        const parametros = [pedido.tipo.id,pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.total, pedido.id];
+        const parametros = [pedido.idCaja, pedido.tipo.id,pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.total, pedido.id];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -477,6 +479,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         }
         else
         {   
+            if (filtros.idCaja != 0) { filtro += " AND p.idCaja = " + filtros.idCaja; }
             if (filtros.tipoPedido != 0) { filtro += " AND p.idTipo = " + filtros.tipoPedido; }
             if (filtros.responsable != 0) { filtro += " AND p.idResponsable = " + filtros.responsable; }
             if (filtros.cliente != null) { filtro += " AND p.cliente LIKE '%" + filtros.cliente + "%' "; }

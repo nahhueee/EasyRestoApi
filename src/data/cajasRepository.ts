@@ -30,7 +30,7 @@ class CajasRepository{
                         fecha: row['fecha'],
                         hora:row['hora'],
                         inicial: row['inicial'],
-                        ventas: row['ventas'],
+                        ventas: await ObtenerMontoPedidos(connection, row['id']),
                         entradas: row['entradas'],
                         salidas: row['salidas'],
                         finalizada: row['finalizada'],
@@ -235,6 +235,24 @@ async function ObtenerUltimaCaja(connection):Promise<number>{
             resultado = 1;
         }else{
             resultado = rows[0][0].id + 1;
+        }
+
+        return resultado;
+        
+    } catch (error) {
+        throw error; 
+    }
+}
+
+async function ObtenerMontoPedidos(connection, idCaja):Promise<number>{
+    try {
+        const rows = await connection.query(" SELECT SUM(total) totalPedidos FROM pedidos WHERE idCaja = ? ", [idCaja]);
+        let resultado:number = 0;
+
+        if([rows][0][0].length==0){
+            resultado = 0;
+        }else{
+            resultado = rows[0][0].totalPedidos;
         }
 
         return resultado;
