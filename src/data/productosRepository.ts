@@ -5,6 +5,7 @@ import { ProductoAdicional } from '../models/ProductoAdicional';
 import { ProductoPrecio } from '../models/ProductoPrecio';
 import { Producto } from '../models/Producto';
 import { ListaPrecio } from '../models/ListaPrecio';
+import { query } from 'express';
 
 class ProductoRepository{
 
@@ -179,6 +180,7 @@ class ProductoRepository{
 
             //Insertamos adicionales
             await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [data.id]);
+            console.log(data.adicionales)
             for (const adicional of data.adicionales!) {
                 adicional.idProducto = data.id;
                 InsertAdicionalProducto(connection, adicional);                
@@ -342,7 +344,6 @@ async function ObtenerAdicionalesProducto(connection, idProducto:number){
 
         const [rows] = await connection.query(consulta, [idProducto]);
         const adicionales:ProductoAdicional[] = [];
-
         if (Array.isArray(rows)) {
             for (let i = 0; i < rows.length; i++) { 
                 const row = rows[i];
@@ -392,7 +393,7 @@ async function InsertAdicionalProducto(connection, adicionalProducto:ProductoAdi
         const consulta = " INSERT INTO productos_adicional(idProducto, idAdicional, recargo) " +
                          " VALUES(?, ?, ?) ";
 
-        const parametros = [
+            const parametros = [
             adicionalProducto.idProducto, 
             adicionalProducto.adicional?.id, 
             adicionalProducto.recargo];

@@ -100,7 +100,7 @@ DROP TABLE IF EXISTS productos_adicional;
 CREATE TABLE productos_adicional (
     idProducto INT,
     idAdicional INT,
-    recargo DECIMAL(5,2),
+    recargo DECIMAL(10,2) DEFAULT 0,
     PRIMARY KEY(idProducto,idAdicional)
 )ENGINE=InnoDB;
 
