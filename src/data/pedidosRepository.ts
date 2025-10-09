@@ -188,7 +188,7 @@ class PedidosRepository{
             await connection.beginTransaction();
 
             //Actualizamos el estado del pedido
-            await connection.query("UPDATE pedidos SET finalizado = ? WHERE id = ?", [pedido.finalizado, pedido.id]);
+            await connection.query("UPDATE pedidos SET finalizado = ?, total = ? WHERE id = ?", [pedido.finalizado, pedido.total, pedido.id]);
 
             //Si esta finalizando agregamos los detalles del pago
             if(pedido.pago && pedido.finalizado == 1){

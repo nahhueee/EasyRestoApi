@@ -214,7 +214,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.7.0'),
+('version','1.7.1'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 

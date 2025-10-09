@@ -99,7 +99,7 @@ class RubrosRepository{
                     icono = ?
                 WHERE id = ? `;
 
-            const parametros = [data.favorita ? 1 : 0, data.nombre.toUpperCase(), data.icono, data.id];
+            const parametros = [data.nombre.toUpperCase(), data.icono, data.id];
             await connection.query(consulta, parametros);
             return "OK";
 
