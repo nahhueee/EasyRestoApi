@@ -11,9 +11,11 @@ class MesasRepository{
             let consulta = "";
 
             if(idSalon != '0'){
-                consulta = "SELECT * FROM mesas WHERE idSalon = ?";
+                consulta = " SELECT m.*, COALESCE(s.nombre, 'ELIMINADO') usuarioAsignado FROM mesas m " +
+                           " LEFT JOIN usuarios s ON s.id = m.asignacion " +
+                           " WHERE m.idSalon = ?";
             }else{
-                consulta = " SELECT m.id, CASE WHEN m.combinada <> '' THEN CONCAT(s.descripcion, ' | ', m.combinada) ELSE CONCAT(s.descripcion, ' | ', m.codigo) END AS codigo " +
+                consulta = " SELECT m.id, CASE WHEN m.combinada <> '' THEN CONCAT(s.descripcion, ' | ', m.combinada) ELSE CONCAT(s.descripcion, ' | ', m.codigo) END AS codigo, m.asignacion " +
                            " FROM mesas m " +
                            " INNER JOIN salones s on s.id = m.idSalon ";
             }
@@ -34,6 +36,8 @@ class MesasRepository{
                     mesa.codGrupo = row['codGrupo'];
                     mesa.principal = row['principal'] == 1 ? true : false;
                     mesa.combinada = row['combinada'];
+                    mesa.asignacion = row['asignacion'];
+                    mesa.usuarioAsignado = row['usuarioAsignado'];
                             
                     mesas.push(mesa);
                 }
@@ -84,15 +88,17 @@ class MesasRepository{
                     idSalon = ?,
                     idPedido = ?,
                     combinada = ?,
-                    principal = ?
+                    principal = ?,
+                    asignacion = ?
                 WHERE id = ? `;
-
+            console.log(data)
             const parametros = [
                                 data.codigo.toUpperCase(), 
                                 data.idSalon, 
                                 data.idPedido, 
                                 data.combinada, 
                                 data.principal, 
+                                data.asignacion, 
                                 data.id
                             ];
             await connection.query(consulta, parametros);

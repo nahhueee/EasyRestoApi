@@ -61,7 +61,6 @@ CREATE TABLE salones (
     orden INT
 );
 
-
 DROP TABLE IF EXISTS mesas;
 CREATE TABLE mesas (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -70,7 +69,8 @@ CREATE TABLE mesas (
     codGrupo CHAR(36) DEFAULT '',
     idPedido INT DEFAULT 0,
     combinada VARCHAR(30) DEFAULT '',
-    principal BOOLEAN DEFAULT 1
+    principal BOOLEAN DEFAULT 1,
+    asignacion INT DEFAULT 0
 );
 
 DROP TABLE IF EXISTS adicionales;
@@ -111,8 +111,7 @@ CREATE TABLE productos_precio (
     idListaPrecio INT,
     descripcion VARCHAR(25),
     costo DECIMAL(10,2),
-    precio DECIMAL(10,2),
-    mostrarDesc BOOLEAN
+    precio DECIMAL(10,2)
 )ENGINE=InnoDB;
 
 DROP TABLE IF EXISTS cajas;
@@ -214,7 +213,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.7.1'),
+('version','1.7.2'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 

@@ -6,6 +6,8 @@ export class Mesa {
     idPedido?:number;
     combinada?:string;
     principal?:boolean;
+    asignacion?:number;
+    usuarioAsignado?:string;
 
     constructor(data?: any) {
         if (data) {
@@ -16,6 +18,8 @@ export class Mesa {
           this.idPedido = data.idPedido;
           this.combinada = data.combinada;
           this.principal = data.principal;
+          this.asignacion = data.asignacion;
+          this.usuarioAsignado = data.usuarioAsignado;
         }
     }
 }
