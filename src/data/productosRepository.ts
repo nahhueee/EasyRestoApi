@@ -319,7 +319,7 @@ async function ObtenerPreciosProducto(connection, idProducto:number){
                         id: row['idListaPrecio'],
                         nombre: row['nombreLista']
                     }),
-                    descripcion : row['descripcion'],
+                    descripcion : row['descripcion'] == '' ? 'TRADICIONAL' : row['descripcion'],
                     mostrarDesc : row['mostrarDesc'],
                     costo : row['costo'],
                     precio : row['precio'],

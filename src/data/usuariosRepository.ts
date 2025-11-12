@@ -44,7 +44,10 @@ class UsuariosRepository{
         const connection = await db.getConnection();
         
         try {
-            const [rows] = await connection.query('SELECT id, nombre FROM usuarios');
+            const sql = " SELECT u.id, u.nombre, c.nombre cargo FROM usuarios u" + 
+                        " LEFT JOIN cargos c on c.id = u.idCargo ";
+
+            const [rows] = await connection.query(sql);
             return [rows][0];
 
         } catch (error:any) {
