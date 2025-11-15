@@ -7,25 +7,17 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-//setings
+// SETTINGS
 app.set('port', process.env.Port || config.port);
 app.use(morgan("dev"));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors());
+
+// ARCHIVOS ESTÁTICOS DEL BACKEND
 app.use(express.static(path.join(__dirname, 'upload')));
 
-//Starting the server
-let host:string = "127.0.0.1";
-if(config.esServer){
-    host = "0.0.0.0";
-}
-
-server.listen(app.get('port'), host, () => {
-    console.log('server ' + process.env.NODE_ENV + ' en puerto ' + app.get('port'));
-});
-
-//#region Rutas
+// RUTAS DE API
 import estadisticasRuta from './routes/estadisticasRoute';
 import actualizacionRuta from './routes/actualizacionRoute';
 import usuariosRuta from './routes/usuariosRoute';
@@ -43,7 +35,7 @@ import cajasRuta from './routes/cajasRoute';
 import movimientosRuta from './routes/movimientosRoute';
 import miscRuta from './routes/miscRoute';
 
-app.use('/easyresto/estadisticas', estadisticasRuta)
+app.use('/easyresto/estadisticas', estadisticasRuta);
 app.use('/easyresto/update', actualizacionRuta);
 app.use('/easyresto/usuarios', usuariosRuta);
 app.use('/easyresto/categorias', categoriasRuta);
@@ -60,38 +52,40 @@ app.use('/easyresto/cajas', cajasRuta);
 app.use('/easyresto/movimientos', movimientosRuta);
 app.use('/easyresto/misc', miscRuta);
 
-
-//AdminServer Route
+// AdminServer
 import adminServerRuta from './routes/adminRoute';
 app.use('/easyresto/adminserver', adminServerRuta);
 
-//Files Route
+// Files
 import filesRoute from './routes/filesRoute';
 app.use('/easyresto/files', filesRoute);
-//#endregion
 
-//#region backups 
+// Backups
 import backupRoute from './routes/backupRoute';
 import {BackupsServ} from './services/backupService';
 app.use('/easyresto/backup', backupRoute);
+if (!config.web) BackupsServ.IniciarCron();
 
-if(!config.web)
-    BackupsServ.IniciarCron();
-//#endregion
-
-//Service Servidor
+// Service Servidor
 import {ServidorServ} from './services/servidorService';
-if(!config.web)
-    ServidorServ.IniciarModoServidor();
+if (!config.web) ServidorServ.IniciarModoServidor();
 
-//Index Route
+// Ruta de prueba API
 app.get('/easyresto', (req, res) => {
     res.status(200).send('Servidor de EasyResto funcionando en este puerto.');
 });
- 
-//404
-app.use((_req, res) => {
-    res.status(404).send('No se encontró el recurso solicitado.');
-});
-  
 
+// ARCHIVOS DE IONIC 
+app.use(express.static(path.join(__dirname, "../www")));
+
+// CUALQUIER RUTA NO API → APP IONIC
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../www/index.html"));
+});
+
+// START SERVER
+let host = config.esServer ? "0.0.0.0" : "127.0.0.1";
+
+server.listen(app.get('port'), host, () => {
+    console.log('server ' + process.env.NODE_ENV + ' en puerto ' + app.get('port'));
+});
