@@ -18,6 +18,17 @@ CREATE TABLE parametros_facturacion (
     direccion VARCHAR(250)
 );
 
+DROP TABLE IF EXISTS parametros_impresion;
+CREATE TABLE parametros_impresion (
+    impresora VARCHAR(100),
+    papel VARCHAR(10),
+    margenIzq INT DEFAULT 0,
+    margenDer INT DEFAULT 0,
+    nomLocal VARCHAR(100),
+    desLocal VARCHAR(100),
+    dirLocal VARCHAR(150)
+);
+
 DROP TABLE IF EXISTS backups;
 CREATE TABLE backups (
     nombre VARCHAR(30) PRIMARY KEY,
@@ -224,6 +235,9 @@ VALUES
 
 INSERT INTO parametros_facturacion(condicion, puntoVta, cuil, razon, direccion) 
 VALUES ('monotributista', 0, 0, '', '');
+
+INSERT INTO parametros_impresion(impresora, papel, margenIzq, margenDer, nomLocal, desLocal, dirLocal)
+VALUES ('', '58mm', 0, 0, 'EASY RESTO', '', '');
 
 INSERT INTO listas_precio(id, nombre) VALUES (NULL,'RESTAURANT'), (NULL,'PARA LLEVAR');
 INSERT INTO tipos_pago(id, nombre) VALUES (NULL,'EFECTIVO'), (NULL,'TARJETA'), (NULL,'TRANSFERENCIA'), (NULL,'COMBINADO');

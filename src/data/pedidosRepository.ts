@@ -124,6 +124,13 @@ class PedidosRepository{
                 InsertDetallePedido(connection, element);
             };
 
+            //Si esta agregando algun descuento o recargo
+            if(pedido.pago){
+                await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
+                pedido.pago.idPedido = pedido.id;
+                InsertPagoPedido(connection, pedido.pago)
+            }
+
             //Marcamos la mesa como no disponible
             if(pedido.mesa?.id != 1){
                 await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]);
@@ -161,6 +168,13 @@ class PedidosRepository{
                 InsertDetallePedido(connection, element);
             };
 
+            //Si esta agregando algun descuento o recargo
+            if(pedido.pago){
+                await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
+                pedido.pago.idPedido = pedido.id;
+                InsertPagoPedido(connection, pedido.pago)
+            }
+
             //Marcamos la mesa como no disponible
             if(pedido.mesa?.id != 1){
                 await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); //Desmarcamos la anterior
@@ -192,10 +206,9 @@ class PedidosRepository{
 
             //Si esta finalizando agregamos los detalles del pago
             if(pedido.pago && pedido.finalizado == 1){
+                await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
                 pedido.pago.idPedido = pedido.id;
                 InsertPagoPedido(connection, pedido.pago)
-            }else{
-                await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
             }
 
             //Guardamos datos de facturacion
@@ -446,7 +459,7 @@ async function InsertDetallePedido(connection, detalle):Promise<void>{
 
 async function ActualizarInventario(connection, detalle, operacion):Promise<void>{
     try {
-        const consulta = `UPDATE producto_variedad SET cantidad = cantidad ${operacion} ? 
+        const consulta = `UPDATE producto SET cantidad = cantidad ${operacion} ? 
                           WHERE id = ?`;
 
         const parametros = [detalle.cantidad, detalle.idProdVar];
