@@ -459,10 +459,10 @@ async function InsertDetallePedido(connection, detalle):Promise<void>{
 
 async function ActualizarInventario(connection, detalle, operacion):Promise<void>{
     try {
-        const consulta = `UPDATE producto SET cantidad = cantidad ${operacion} ? 
+        const consulta = `UPDATE productos SET cantidad = cantidad ${operacion} ? 
                           WHERE id = ?`;
 
-        const parametros = [detalle.cantidad, detalle.idProdVar];
+        const parametros = [detalle.cantidad, detalle.idProducto];
         await connection.query(consulta, parametros);
         
     } catch (error) {

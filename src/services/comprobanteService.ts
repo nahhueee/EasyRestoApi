@@ -19,7 +19,6 @@ const printer = new PdfPrinter(fonts);
 
 class ComprobanteService {
     async GenerarComprobantePDF(pedido, parametrosImpresion, tipoComprobante) {
-        console.log(parametrosImpresion)
         const comprobante = this.GenerarDatosComunes(pedido, parametrosImpresion.papel);
 
         comprobante.papel = parametrosImpresion.papel;
@@ -192,8 +191,6 @@ class ComprobanteService {
         comprobante.recargo = pedido.pago!.recargo != null ? pedido.pago!.recargo : 0;
         comprobante.totalFinal = total;
 
-        console.log(comprobante)
-    
         return comprobante;
     }
 
