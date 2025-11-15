@@ -9,6 +9,7 @@ async function setup() {
     // Definir las carpetas necesarias
     const directories = [
       "out/src/upload",
+      "out/src/temp",
       "out/src/db/seeds",
       "out/src/db/tasks",
       "out/src/certs"
