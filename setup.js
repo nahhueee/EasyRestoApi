@@ -12,7 +12,8 @@ async function setup() {
       "out/src/temp",
       "out/src/db/seeds",
       "out/src/db/tasks",
-      "out/src/certs"
+      "out/src/certs",
+      "out/www"
     ];
 
     // Crear todas las carpetas
