@@ -90,7 +90,7 @@ class ProductoRepository{
 
             //Obtenemos el proximo nro de producto a insertar
             data.id = await ObtenerUltimoProducto(connection);
-                
+
             //Iniciamos una transaccion
             await connection.beginTransaction();
 
@@ -180,7 +180,6 @@ class ProductoRepository{
 
             //Insertamos adicionales
             await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [data.id]);
-            console.log(data.adicionales)
             for (const adicional of data.adicionales!) {
                 adicional.idProducto = data.id;
                 InsertAdicionalProducto(connection, adicional);                
@@ -308,7 +307,6 @@ async function ObtenerPreciosProducto(connection, idProducto:number){
         const [rows] = await connection.query(consulta, [idProducto]);
 
         const precios:Array<ProductoPrecio> = [];
-
         if (Array.isArray(rows)) {
             for (let i = 0; i < rows.length; i++) { 
                 const row = rows[i];
@@ -320,13 +318,12 @@ async function ObtenerPreciosProducto(connection, idProducto:number){
                         nombre: row['nombreLista']
                     }),
                     descripcion : row['descripcion'] == '' ? 'TRADICIONAL' : row['descripcion'],
-                    mostrarDesc : row['mostrarDesc'],
                     costo : row['costo'],
                     precio : row['precio'],
                 });
                
                 precios.push(precio)
-              }
+            }
         }
 
         return precios;
@@ -370,8 +367,8 @@ async function ObtenerAdicionalesProducto(connection, idProducto:number){
 
 async function InsertPrecioProducto(connection, precioProducto:ProductoPrecio):Promise<void>{
     try {
-        const consulta = " INSERT INTO productos_precio(idProducto, idListaPrecio, descripcion, costo, precio, mostrarDesc) " +
-                         " VALUES(?, ?, ?, ?, ?, ?) ";
+        const consulta = " INSERT INTO productos_precio(idProducto, idListaPrecio, descripcion, costo, precio) " +
+                         " VALUES(?, ?, ?, ?, ?) ";
 
         const parametros = [
             precioProducto.idProducto, 
@@ -379,7 +376,6 @@ async function InsertPrecioProducto(connection, precioProducto:ProductoPrecio):P
             precioProducto.descripcion,
             precioProducto.costo, 
             precioProducto.precio,
-            precioProducto.mostrarDesc
         ];
         await connection.query(consulta, parametros);
         

@@ -13,6 +13,19 @@ const udpPort = 41234;
 
 class ServidorService {
 
+  GuardarInfoServidor(puerto:string) {
+  const filePath = path.join(__dirname, '../../www/server-info.json');
+
+
+    const data = {
+      ip: getLocalIPAddress(),
+      puerto: puerto,
+      fecha: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  }
+
   async IniciarModoServidor(){
       try{ 
           //Obtenemos los parametros necesarios
@@ -73,7 +86,7 @@ class ServidorService {
 
     udpServer.on('message', async (msg, rinfo) => {
       if (msg.toString() === 'DISCOVER_SERVER') {
-        const response = Buffer.from(`DISCOVERY_RESPONSE|${getLocalIPAddress()}|7500`);
+        const response = Buffer.from(`DISCOVERY_RESPONSE|${getLocalIPAddress()}|7600`);
         udpServer.send(response, rinfo.port, rinfo.address);
       }
     });

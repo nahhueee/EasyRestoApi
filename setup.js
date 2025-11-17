@@ -13,6 +13,7 @@ async function setup() {
       "out/src/db/seeds",
       "out/src/db/tasks",
       "out/src/certs",
+      "out/src/fonts",
       "out/www"
     ];
 
@@ -32,6 +33,10 @@ async function setup() {
       ".env",
       "knexfile.js",
       "src/db/script.sql",
+      "src/fonts/Roboto-Italic.ttf",
+      "src/fonts/Roboto-Medium.ttf",
+      "src/fonts/Roboto-Regular.ttf",
+      "src/fonts/Roboto-MediumItalic.ttf",
     ];
 
     //Archivo de configuracion dependiendo el entorno

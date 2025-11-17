@@ -70,6 +70,9 @@ if (!config.web) BackupsServ.IniciarCron();
 import {ServidorServ} from './services/servidorService';
 if (!config.web) ServidorServ.IniciarModoServidor();
 
+//GUARDAMOS LA IP PARA QUE LA PUEDA USAR IONIC
+ServidorServ.GuardarInfoServidor(config.port);
+
 // Ruta de prueba API
 app.get('/easyresto', (req, res) => {
     res.status(200).send('Servidor de EasyResto funcionando en este puerto.');
@@ -79,7 +82,19 @@ app.get('/easyresto', (req, res) => {
 app.use(express.static(path.join(__dirname, "../www")));
 
 // CUALQUIER RUTA NO API → APP IONIC
-app.get("*", (req, res) => {
+app.get('*', function(req, res) {
+  if (
+    req.originalUrl.includes('.js') ||
+    req.originalUrl.includes('.css') ||
+    req.originalUrl.includes('.map') ||
+    req.originalUrl.includes('.json') ||
+    req.originalUrl.startsWith('/assets')
+  ) {
+    // Dejar que el static lo maneje → evita romper Ionic
+    res.status(404).end();
+    return;
+  }
+
   res.sendFile(path.join(__dirname, "../www/index.html"));
 });
 
