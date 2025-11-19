@@ -102,7 +102,6 @@ class ComandaService {
         pageSize: {
             width: 140,
             height: 800,
-            pageOrientation: 'portrait',
         },
         pageMargins: [comanda.margenIzq, 0, comanda.margenDer, 0],
         content: [

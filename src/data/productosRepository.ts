@@ -112,6 +112,7 @@ class ProductoRepository{
             //#endregion
             
             //Insertamos los precios
+            console.log(data.id)
             await connection.query("DELETE FROM productos_precio WHERE idProducto = ?", [data.id]);
             for (const precio of data.precios!) {
                 precio.idProducto = data.id;
@@ -173,6 +174,7 @@ class ProductoRepository{
 
             //Insertamos los precios
             await connection.query("DELETE FROM productos_precio WHERE idProducto = ?", [data.id]);
+            
             for (const precio of data.precios!) {
                 precio.idProducto = data.id;
                 InsertPrecioProducto(connection, precio);                

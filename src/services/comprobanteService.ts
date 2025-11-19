@@ -200,7 +200,6 @@ class ComprobanteService {
         pageSize: {
           width: 140,
           height: 800,
-          pageOrientation: 'portrait',
         },
         pageMargins: [comprobante.margenIzq, 0, comprobante.margenDer, 0],
         content: [

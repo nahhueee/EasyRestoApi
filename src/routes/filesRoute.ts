@@ -45,6 +45,7 @@ router.post('/imprimir-pdf', async (req: Request, res: Response) => {
 
     fs.writeFileSync(tempPath, pdfBuffer);
 
+    console.log(parametrosImpresion)
     //Enviar a la impresora
     await printer.print(tempPath, {
       printer: parametrosImpresion.impresora,
