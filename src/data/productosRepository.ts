@@ -112,18 +112,17 @@ class ProductoRepository{
             //#endregion
             
             //Insertamos los precios
-            console.log(data.id)
             await connection.query("DELETE FROM productos_precio WHERE idProducto = ?", [data.id]);
             for (const precio of data.precios!) {
                 precio.idProducto = data.id;
-                InsertPrecioProducto(connection, precio);                
+                await InsertPrecioProducto(connection, precio);                
             };
 
             //Insertamos adicionales
             await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [data.id]);
             for (const adicional of data.adicionales!) {
                 adicional.idProducto = data.id;
-                InsertAdicionalProducto(connection, adicional);                
+                await InsertAdicionalProducto(connection, adicional);                
             };
 
             //Mandamos la transaccion
@@ -177,14 +176,14 @@ class ProductoRepository{
             
             for (const precio of data.precios!) {
                 precio.idProducto = data.id;
-                InsertPrecioProducto(connection, precio);                
+                await InsertPrecioProducto(connection, precio);                
             };
 
             //Insertamos adicionales
             await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [data.id]);
             for (const adicional of data.adicionales!) {
                 adicional.idProducto = data.id;
-                InsertAdicionalProducto(connection, adicional);                
+                await InsertAdicionalProducto(connection, adicional);                
             };
 
             //Mandamos la transaccion

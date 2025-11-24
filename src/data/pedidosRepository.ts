@@ -118,22 +118,22 @@ class PedidosRepository{
             //Insertamos la venta
             await InsertPedido(connection, pedido);
 
+            //Marcamos la mesa como no disponible
+            if(pedido.mesa?.id != 1){
+                await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]);
+            }
+
             //Insertamos los detalles de la venta
             for (const element of  pedido.detalles!) {
                 element.idPedido = pedido.id;
-                InsertDetallePedido(connection, element);
+                await InsertDetallePedido(connection, element);
             };
 
             //Si esta agregando algun descuento o recargo
             if(pedido.pago){
                 await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
                 pedido.pago.idPedido = pedido.id;
-                InsertPagoPedido(connection, pedido.pago)
-            }
-
-            //Marcamos la mesa como no disponible
-            if(pedido.mesa?.id != 1){
-                await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]);
+                await InsertPagoPedido(connection, pedido.pago)
             }
 
             //Mandamos la transaccion
@@ -159,26 +159,26 @@ class PedidosRepository{
             //Insertamos la venta
             await UpdatePedido(connection, pedido);
 
+            //Marcamos la mesa como no disponible
+            if(pedido.mesa?.id != 1){
+                await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); //Desmarcamos la anterior
+                await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]); //Marcamos la nueva
+            }
+
             //Eliminamos los detalles del pedido
             await connection.query("DELETE FROM pedidos_detalle WHERE idPedido = ?", [pedido.id]);
 
             //Insertamos los detalles del pedido
             for (const element of  pedido.detalles!) {
                 element.idPedido = pedido.id;
-                InsertDetallePedido(connection, element);
+                await InsertDetallePedido(connection, element);
             };
 
             //Si esta agregando algun descuento o recargo
             if(pedido.pago){
                 await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
                 pedido.pago.idPedido = pedido.id;
-                InsertPagoPedido(connection, pedido.pago)
-            }
-
-            //Marcamos la mesa como no disponible
-            if(pedido.mesa?.id != 1){
-                await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); //Desmarcamos la anterior
-                await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]); //Marcamos la nueva
+                await InsertPagoPedido(connection, pedido.pago)
             }
 
             //Mandamos la transaccion
@@ -204,17 +204,22 @@ class PedidosRepository{
             //Actualizamos el estado del pedido
             await connection.query("UPDATE pedidos SET finalizado = ?, total = ? WHERE id = ?", [pedido.finalizado, pedido.total, pedido.id]);
 
+            //Marcamos la mesa como disponible
+            if(pedido.mesa?.id != 1){
+                await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); 
+            }
+
             //Si esta finalizando agregamos los detalles del pago
             if(pedido.pago && pedido.finalizado == 1){
                 await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
                 pedido.pago.idPedido = pedido.id;
-                InsertPagoPedido(connection, pedido.pago)
+                await InsertPagoPedido(connection, pedido.pago)
             }
 
             //Guardamos datos de facturacion
             if(pedido.factura?.cae && pedido.finalizado == 1){
                 pedido.factura.idPedido = pedido.id;
-                InsertFacturaPedido(connection, pedido.factura);
+                await InsertFacturaPedido(connection, pedido.factura);
             }  
             
             //Actualizamos inventario
@@ -222,13 +227,8 @@ class PedidosRepository{
                 const signo = pedido.finalizado ? "-" : "+";
 
                 if(element.tipoProd == "terciarizado")
-                    ActualizarInventario(connection, element, signo)
+                    await ActualizarInventario(connection, element, signo)
             };
-
-            //Marcamos la mesa como disponible
-            if(pedido.mesa?.id != 1){
-                await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); 
-            }
 
             //Mandamos la transaccion
             await connection.commit();
@@ -275,17 +275,27 @@ class PedidosRepository{
 
     async Eliminar(id:string): Promise<string>{
         const connection = await db.getConnection();
-        
         try {
+            await connection.beginTransaction();
+            console.log("Eliminando pedido id: ", id);
+            //Bajamos el pedido
+            await connection.query(
+                "UPDATE pedidos SET fechaBaja = ? WHERE id = ?",
+                [new Date(), id]
+            );
+
             //Marcamos la mesa como disponible
-            await connection.query("UPDATE mesas SET idPedido = 0 WHERE idPedido = ?", [id]); 
+            await connection.query(
+                "UPDATE mesas SET idPedido = 0 WHERE idPedido = ?",
+                [id]
+            );
 
-            await connection.query("UPDATE pedidos SET fechaBaja = ? WHERE id = ?", [new Date(), id]);
+            await connection.commit();
             return "OK";
-
-        } catch (error:any) {
-            throw error;
-        } finally{
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
             connection.release();
         }
     }
