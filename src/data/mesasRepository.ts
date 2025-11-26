@@ -4,23 +4,49 @@ import { Mesa } from '../models/Mesa';
 class MesasRepository{
 
     //#region OBTENER
-    async Obtener(idSalon:string){
+    async Obtener(idSalon:string, idUsuario:string){
         const connection = await db.getConnection();
         
         try {
-            let consulta = "";
+            const filtros: any[] = [];
+            let sql = "";
 
-            if(idSalon != '0'){
-                consulta = " SELECT m.*, COALESCE(s.nombre, 'ELIMINADO') usuarioAsignado FROM mesas m " +
-                           " LEFT JOIN usuarios s ON s.id = m.asignacion " +
-                           " WHERE m.idSalon = ?";
-            }else{
-                consulta = " SELECT m.id, CASE WHEN m.combinada <> '' THEN CONCAT(s.descripcion, ' | ', m.combinada) ELSE CONCAT(s.descripcion, ' | ', m.codigo) END AS codigo, m.asignacion " +
-                           " FROM mesas m " +
-                           " INNER JOIN salones s on s.id = m.idSalon ";
+            // Consulta base según salón
+            if (idSalon !== '0') {
+                sql = `
+                    SELECT 
+                        m.*,
+                        COALESCE(s.nombre, 'ELIMINADO') AS usuarioAsignado
+                    FROM mesas m
+                    LEFT JOIN usuarios s ON s.id = m.asignacion
+                    WHERE 1 = 1
+                `;
+
+                sql += " AND m.idSalon = ?";
+                filtros.push(idSalon);
+
+            } else {
+                sql = `
+                    SELECT 
+                        m.id,
+                        CASE 
+                            WHEN m.combinada <> '' THEN CONCAT(s.descripcion, ' | ', m.combinada)
+                            ELSE CONCAT(s.descripcion, ' | ', m.codigo)
+                        END AS codigo,
+                        m.asignacion
+                    FROM mesas m
+                    INNER JOIN salones s ON s.id = m.idSalon
+                    WHERE 1 = 1
+                `;
             }
 
-            const [rows] = await connection.query(consulta, [idSalon]);
+            // Filtro por usuario si corresponde
+            if (idUsuario !== '0') {
+                sql += " AND m.asignacion = ?";
+                filtros.push(idUsuario);
+            }
+
+            const [rows] = await connection.query(sql, filtros);
 
             const mesas:Mesa[] = [];
                        

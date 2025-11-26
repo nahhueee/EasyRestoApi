@@ -4,9 +4,9 @@ import logger from '../log/loggerGeneral';
 const router : Router  = Router();
 
 //#region OBTENER
-router.get('/obtener/:id', async (req:Request, res:Response) => {
+router.get('/obtener/:id/:usuario', async (req:Request, res:Response) => {
     try{ 
-        res.json(await MesasRepo.Obtener(req.params.id));
+        res.json(await MesasRepo.Obtener(req.params.id, req.params.usuario));
 
     } catch(error:any){
         let msg = "Error al obtener el listado de mesas.";
