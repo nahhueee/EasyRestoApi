@@ -106,12 +106,52 @@ class ParametrosRepository{
     }
   }
 
-   async ObtenerParametrosImpresion(){
+  async ActualizarMobile(data:any): Promise<string>{
+    const connection = await db.getConnection();
+    try {
+        const consulta = `UPDATE parametros_mobile
+                          SET 
+                          imagenes = ?, 
+                          todasMesas = ?, 
+                          impComprobante = ?`;
+
+        const parametros = [data.imagenes, data.todasMesas, data.impComprobante];
+        console.log(parametros)
+        await connection.query(consulta, parametros);
+        return "OK";
+
+    } catch (error:any) {
+        throw error;
+    } finally{
+        connection.release();
+    }
+  }
+
+  async ObtenerParametrosImpresion(){
     const connection = await db.getConnection();
 
     try {
         
         const rows = await connection.query(`SELECT * FROM parametros_impresion`);
+      
+        if(rows[0][0]){
+          return rows[0][0];
+        }
+        return null;
+
+    } catch (error:any) {
+        throw error;
+    } finally{
+        connection.release();
+    }
+  }
+
+  async ObtenerParametrosMobile(){
+    const connection = await db.getConnection();
+
+    try {
+        
+        const rows = await connection.query(`SELECT * FROM parametros_mobile`);
       
         if(rows[0][0]){
           return rows[0][0];

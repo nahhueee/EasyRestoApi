@@ -46,6 +46,7 @@ class EstadisticasRepository{
         
         try {
             const { fechaDesde, fechaHasta } = obtenerRangosFecha(filtros);
+            const adicional = filtros.caja != 0 ? " AND p.idCaja = " + filtros.caja : " AND (p.fecha BETWEEN ? AND ?) ";
 
             //#region CONSULTAS
             const consultaTotales =  " SELECT  " +
@@ -55,7 +56,9 @@ class EstadisticasRepository{
                                      " COALESCE(SUM(CASE WHEN ppag.idTPago = 4 THEN digital ELSE 0 END), 0) AS otros " +
                                      " FROM pedidos_pago ppag " +
                                      " INNER JOIN pedidos p ON p.id = ppag.idPedido " +
-                                     " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND ppag.realizado = 1 ";
+                                     " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1 " +
+                                     adicional;
+
 
             const [resultTotales] = await connection.query(consultaTotales, [fechaDesde, fechaHasta]);
 
@@ -66,7 +69,8 @@ class EstadisticasRepository{
                                      " SUM(CASE WHEN ppag.idTPago = 4 THEN 1 ELSE 0 END) AS cant_otros " +
                                      " FROM pedidos_pago ppag " +
                                      " INNER JOIN pedidos p ON p.id = ppag.idPedido " +
-                                     " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND ppag.realizado = 1 ";
+                                     " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1 " +
+                                     adicional;
 
             const [resultCantidad] = await connection.query(consultaCantidad, [fechaDesde, fechaHasta]);
             //#endregion

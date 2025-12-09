@@ -29,6 +29,13 @@ CREATE TABLE parametros_impresion (
     dirLocal VARCHAR(150)
 );
 
+DROP TABLE IF EXISTS parametros_mobile;
+CREATE TABLE parametros_mobile (
+    imagenes INT DEFAULT 0,
+    todasMesas INT DEFAULT 0,
+    impComprobante INT DEFAULT 0
+);
+
 DROP TABLE IF EXISTS backups;
 CREATE TABLE backups (
     nombre VARCHAR(30) PRIMARY KEY,
@@ -224,7 +231,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.8.2'),
+('version','1.8.3'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 
@@ -238,6 +245,9 @@ VALUES ('monotributista', 0, 0, '', '');
 
 INSERT INTO parametros_impresion(impresora, papel, margenIzq, margenDer, nomLocal, desLocal, dirLocal)
 VALUES ('', '58mm', 0, 0, 'EASY RESTO', '', '');
+
+INSERT INTO parametros_mobile(imagenes, todasMesas, impComprobante)
+VALUES (0, 0, 0);
 
 INSERT INTO listas_precio(id, nombre) VALUES (NULL,'RESTAURANT'), (NULL,'PARA LLEVAR');
 INSERT INTO tipos_pago(id, nombre) VALUES (NULL,'EFECTIVO'), (NULL,'TARJETA'), (NULL,'TRANSFERENCIA'), (NULL,'COMBINADO');

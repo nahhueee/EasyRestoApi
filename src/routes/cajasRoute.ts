@@ -25,6 +25,17 @@ router.get('/obtener-caja/:id', async (req:Request, res:Response) => {
         res.status(500).send(msg);
     }
 });
+
+router.get('/obtener-ultima-activa', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await CajasRepo.ObtenerUltimaCajaActiva());
+
+    } catch(error:any){
+        let msg = "Error al obtener la última caja activa.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
 //#endregion
 
 //#region ABM

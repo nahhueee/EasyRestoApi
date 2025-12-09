@@ -65,7 +65,7 @@ class CajasRepository{
                 fecha: row['fecha'],
                 hora:row['hora'],
                 inicial: row['inicial'],
-                ventas: row['ventas'],
+                ventas: await ObtenerMontoPedidos(connection, row['id']),
                 entradas: row['entradas'],
                 salidas: row['salidas'],
                 finalizada: row['finalizada'],
@@ -79,6 +79,18 @@ class CajasRepository{
             connection.release();
         }
     }
+
+    async ObtenerUltimaCajaActiva(){
+        const connection = await db.getConnection();
+        
+        try {
+            return await ObtenerUltimaCajaActiva(connection);
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
     //#endregion
 
     //#region ABM
@@ -86,6 +98,9 @@ class CajasRepository{
         const connection = await db.getConnection();
         
         try {
+            if(await TienePedidosActivos(connection, parseInt(data.idCaja)) == true)
+                return "La caja tiene pedidos activos, no se puede finalizar.";
+
             const consulta = " UPDATE cajas " +
                              " SET finalizada = ? " +
                              " WHERE id = ?";
@@ -152,6 +167,9 @@ class CajasRepository{
         const connection = await db.getConnection();
         
         try {
+            if(await TienePedidosActivos(connection, parseInt(id)) == true)
+                return "La caja tiene pedidos activos, no se puede eliminar.";
+
             let consulta = " UPDATE cajas " +
                            " SET fechaBaja = ? " +
                            " WHERE id = ?";
@@ -226,6 +244,24 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
     }
 }
 
+async function ObtenerUltimaCajaActiva(connection):Promise<number>{
+    try {
+        const rows = await connection.query(" SELECT id FROM cajas WHERE finalizada = 0 ORDER BY id DESC LIMIT 1 ");
+        let resultado:number = 0;
+
+        if([rows][0][0].length==0){
+            resultado = -11;
+        }else{
+            resultado = rows[0][0].id;
+        }
+
+        return resultado;
+        
+    } catch (error) {
+        throw error; 
+    }
+}
+
 async function ObtenerUltimaCaja(connection):Promise<number>{
     try {
         const rows = await connection.query(" SELECT id FROM cajas ORDER BY id DESC LIMIT 1 ");
@@ -257,6 +293,20 @@ async function ObtenerMontoPedidos(connection, idCaja):Promise<number>{
 
         return resultado;
         
+    } catch (error) {
+        throw error; 
+    }
+}
+
+async function TienePedidosActivos(connection, idCaja:number):Promise<boolean>{
+    try {
+        let consulta = " SELECT * FROM pedidos WHERE idcaja = ? AND finalizado = 0 ";
+        const parametros = [idCaja];
+
+        const rows = await connection.query(consulta,parametros);
+        if(rows[0].length > 0) return true;
+        
+        return false;
     } catch (error) {
         throw error; 
     }

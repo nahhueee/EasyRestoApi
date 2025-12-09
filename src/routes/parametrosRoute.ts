@@ -48,6 +48,28 @@ router.get('/obtener-impresion', async (req:Request, res:Response) => {
     }
 });
 
+router.get('/obtener-mobile', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await ParametrosRepo.ObtenerParametrosMobile());
+
+    } catch(error:any){
+        let msg = "Error al intentar obtener parametros para dispositivos moviles.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+
+router.post('/actualizar-mobile', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await ParametrosRepo.ActualizarMobile(req.body));
+
+    } catch(error:any){
+        let msg = "Error al intentar guardar parametros para dispositivos moviles.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+
 router.post('/actualizar-facturacion', async (req:Request, res:Response) => {
     try{ 
         res.json(await ParametrosRepo.ActualizarFacturacion(req.body));

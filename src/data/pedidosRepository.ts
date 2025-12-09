@@ -138,7 +138,7 @@ class PedidosRepository{
 
             //Mandamos la transaccion
             await connection.commit();
-            return "OK";
+            return pedido.id.toString();
 
         } catch (error:any) {
             //Si ocurre un error volvemos todo para atras
