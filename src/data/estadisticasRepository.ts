@@ -46,7 +46,7 @@ class EstadisticasRepository{
         
         try {
             const { fechaDesde, fechaHasta } = obtenerRangosFecha(filtros);
-            const adicional = filtros.caja != 0 ? " AND p.idCaja = " + filtros.caja : " AND (p.fecha BETWEEN ? AND ?) ";
+            const adicional = filtros.caja && filtros.caja != 0 ? " AND p.idCaja = " + filtros.caja : " AND (p.fecha BETWEEN ? AND ?) ";
 
             //#region CONSULTAS
             const consultaTotales =  " SELECT  " +
@@ -130,12 +130,13 @@ class EstadisticasRepository{
         try {
             const { fechaDesde, fechaHasta } = obtenerRangosFecha(filtros);
 
-            const consulta = " SELECT COUNT(pd.idProducto) EjeY, pro.nombre EjeX " +
+            const consulta = " SELECT SUM(pd.cantidad) EjeY, pro.nombre EjeX  " +
                              " FROM pedidos_detalle pd" +
                              " INNER JOIN productos pro ON pro.id = pd.idProducto" +
                              " INNER JOIN pedidos p on pd.idPedido = p.id " +
                              " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND p.finalizado = 1" + 
                              " GROUP BY pd.idProducto" +
+                             " ORDER BY EjeY DESC " +
                              " LIMIT 5;";
 
             const [rows] = await connection.query(consulta, [fechaDesde, fechaHasta]);
