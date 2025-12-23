@@ -231,7 +231,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.8.3'),
+('version','1.7.2'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 
@@ -239,6 +239,7 @@ VALUES
 ('hora', '20:30'), 
 ('avisoNvaVersion', 'true'),
 ('actualizado', 'false');
+('modoTrabajo', 'pedidos')
 
 INSERT INTO parametros_facturacion(condicion, puntoVta, cuil, razon, direccion) 
 VALUES ('monotributista', 0, 0, '', '');

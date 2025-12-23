@@ -300,7 +300,7 @@ async function ObtenerMontoPedidos(connection, idCaja):Promise<number>{
 
 async function TienePedidosActivos(connection, idCaja:number):Promise<boolean>{
     try {
-        let consulta = " SELECT * FROM pedidos WHERE idcaja = ? AND finalizado = 0 ";
+        let consulta = " SELECT * FROM pedidos WHERE idcaja = ? AND finalizado = 0 AND fechaBaja IS NULL ";
         const parametros = [idCaja];
 
         const rows = await connection.query(consulta,parametros);

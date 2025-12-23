@@ -29,10 +29,11 @@ class MesasRepository{
                 sql = `
                     SELECT 
                         m.id,
+                        m.codigo,
                         CASE 
                             WHEN m.combinada <> '' THEN CONCAT(s.descripcion, ' | ', m.combinada)
                             ELSE CONCAT(s.descripcion, ' | ', m.codigo)
-                        END AS codigo,
+                        END AS nombre,
                         m.asignacion
                     FROM mesas m
                     INNER JOIN salones s ON s.id = m.idSalon
