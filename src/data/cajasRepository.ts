@@ -250,7 +250,7 @@ async function ObtenerUltimaCajaActiva(connection):Promise<number>{
         let resultado:number = 0;
 
         if([rows][0][0].length==0){
-            resultado = -11;
+            resultado = -1;
         }else{
             resultado = rows[0][0].id;
         }
