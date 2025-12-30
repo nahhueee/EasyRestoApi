@@ -319,6 +319,7 @@ async function ObtenerPreciosProducto(connection, idProducto:number){
                         nombre: row['nombreLista']
                     }),
                     descripcion : row['descripcion'] == '' ? 'TRADICIONAL' : row['descripcion'],
+                    posicionDes : row['posicionDes'] == null ? 'izquierda' : row['posicionDes'],
                     costo : row['costo'],
                     precio : row['precio'],
                 });
@@ -368,13 +369,14 @@ async function ObtenerAdicionalesProducto(connection, idProducto:number){
 
 async function InsertPrecioProducto(connection, precioProducto:ProductoPrecio):Promise<void>{
     try {
-        const consulta = " INSERT INTO productos_precio(idProducto, idListaPrecio, descripcion, costo, precio) " +
-                         " VALUES(?, ?, ?, ?, ?) ";
+        const consulta = " INSERT INTO productos_precio(idProducto, idListaPrecio, descripcion, posicionDes, costo, precio) " +
+                         " VALUES(?, ?, ?, ?, ?, ?) ";
 
         const parametros = [
             precioProducto.idProducto, 
             precioProducto.listaPrecio?.id, 
             precioProducto.descripcion,
+            precioProducto.posicionDes,
             precioProducto.costo, 
             precioProducto.precio,
         ];

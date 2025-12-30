@@ -5,6 +5,7 @@ export class ProductoPrecio {
     idProducto?:number;
     listaPrecio?:ListaPrecio;
     descripcion? : string;
+    posicionDes?: "izquierda" | "derecha" = "izquierda";
     costo : number = 0;
     precio : number = 0;
     mostrarDesc: boolean = false;
@@ -15,6 +16,7 @@ export class ProductoPrecio {
             this.idProducto = data.idProducto;
             this.listaPrecio = data.listaPrecio;
             this.descripcion = data.descripcion;
+            this.posicionDes = data.posicionDes;
             this.mostrarDesc = data.mostrarDesc;
             this.costo = parseFloat(data.costo);
             this.precio = parseFloat(data.precio);

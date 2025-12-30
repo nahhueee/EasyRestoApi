@@ -277,7 +277,7 @@ class PedidosRepository{
         const connection = await db.getConnection();
         try {
             await connection.beginTransaction();
-            console.log("Eliminando pedido id: ", id);
+
             //Bajamos el pedido
             await connection.query(
                 "UPDATE pedidos SET fechaBaja = ? WHERE id = ?",

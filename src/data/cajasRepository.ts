@@ -246,8 +246,9 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
 
 async function ObtenerUltimaCajaActiva(connection):Promise<number>{
     try {
-        const rows = await connection.query(" SELECT id FROM cajas WHERE finalizada = 0 ORDER BY id DESC LIMIT 1 ");
+        const rows = await connection.query(" SELECT id FROM cajas WHERE finalizada = 0 AND fechaBaja IS NULL ORDER BY id DESC LIMIT 1 ");
         let resultado:number = 0;
+        console.log([rows][0][0])
 
         if([rows][0][0].length==0){
             resultado = -1;
@@ -282,7 +283,7 @@ async function ObtenerUltimaCaja(connection):Promise<number>{
 
 async function ObtenerMontoPedidos(connection, idCaja):Promise<number>{
     try {
-        const rows = await connection.query(" SELECT SUM(total) totalPedidos FROM pedidos WHERE idCaja = ? ", [idCaja]);
+        const rows = await connection.query(" SELECT SUM(total) totalPedidos FROM pedidos WHERE idCaja = ? AND finalizado = 1 AND fechaBaja IS NULL ", [idCaja]);
         let resultado:number = 0;
 
         if([rows][0][0].length==0){

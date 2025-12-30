@@ -128,6 +128,7 @@ CREATE TABLE productos_precio (
     idProducto INT,
     idListaPrecio INT,
     descripcion VARCHAR(25),
+    posicionDes VARCHAR(10) DEFAULT 'izquierda',
     costo DECIMAL(10,2),
     precio DECIMAL(10,2)
 )ENGINE=InnoDB;
@@ -231,7 +232,7 @@ CREATE TABLE tipos_pago (
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.7.3'),
+('version','1.7.4'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 

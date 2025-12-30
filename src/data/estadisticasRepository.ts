@@ -75,6 +75,8 @@ class EstadisticasRepository{
             const [resultCantidad] = await connection.query(consultaCantidad, [fechaDesde, fechaHasta]);
             //#endregion
 
+            console.log(resultTotales)
+
             return {
                 total_efectivo: parseFloat(resultTotales[0].efectivo),
                 total_tarjetas: parseFloat(resultTotales[0].tarjetas),
