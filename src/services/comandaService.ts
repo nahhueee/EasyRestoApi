@@ -15,8 +15,8 @@ const fonts = {
 const printer = new PdfPrinter(fonts);
 
 class ComandaService {
-    async GenerarComandaPDF(pedido, parametrosImpresion) {
-        const comanda = this.GenerarDatosComunes(pedido);
+    async GenerarComandaPDF(pedido, parametrosImpresion, tipo = "elaborado"): Promise<Buffer> {
+        const comanda = this.GenerarDatosComunes(pedido, tipo);
 
         comanda.papel = parametrosImpresion.papel;
         comanda.margenDer = parametrosImpresion.margenDer;
@@ -43,7 +43,7 @@ class ComandaService {
     }
 
     //Genera los datos comunes del documento y la estructura de la tabla
-    private GenerarDatosComunes(pedido:Pedido): ObjComanda {
+    private GenerarDatosComunes(pedido:Pedido, tipo:string = "elaborado"): ObjComanda {
         let comanda = new ObjComanda();
 
         comanda.nroPedido = pedido.id!;
@@ -68,29 +68,31 @@ class ComandaService {
         ]
         ];
 
-        pedido.detalles!.filter(item => item.tipoProd === 'elaborado')
+        //TODO
+        //TEMPORAL - Buscar la forma de estandarizar esto con las promociones
+        pedido.detalles!.filter(item => item.tipoProd == tipo || item.producto?.includes("PROMO"))
         .forEach(item => {
 
-        // Fila principal
-        comanda.filasTabla?.push([
-            FormatearCantidad(item.cantidad),
-            item.producto,
-        ]);
-
-        // Fila de observación si existe
-        if (item.obs && item.obs != "") {
+            // Fila principal
             comanda.filasTabla?.push([
-            {
-                text: `*    ${item.obs}`,
-                italics: true,
-                fontSize: comanda.papel == "58mm" ? 9 : 11,
-                colSpan: 2,
-                margin: [1, -2, 0, 2],
-                border: [false, false, false, false]
-            },
-            {} // Celda vacía requerida para completar el colSpan
+                FormatearCantidad(item.cantidad),
+                item.producto,
             ]);
-        }
+
+            // Fila de observación si existe
+            if (item.obs && item.obs != "") {
+                comanda.filasTabla?.push([
+                {
+                    text: `*    ${item.obs}`,
+                    italics: true,
+                    fontSize: comanda.papel == "58mm" ? 9 : 11,
+                    colSpan: 2,
+                    margin: [1, -2, 0, 2],
+                    border: [false, false, false, false]
+                },
+                {} // Celda vacía requerida para completar el colSpan
+                ]);
+            }
         });
 
         return comanda;
@@ -193,7 +195,7 @@ class ComandaService {
     private ArmarComanda80(comanda:ObjComanda){
         return {
         pageSize: {
-            width: 227, 
+            width: 200, 
             height: 800,
         },
         pageMargins: [comanda.margenIzq, 0, comanda.margenDer, 0],

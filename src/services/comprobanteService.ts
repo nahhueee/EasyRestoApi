@@ -18,7 +18,7 @@ const fonts = {
 const printer = new PdfPrinter(fonts);
 
 class ComprobanteService {
-    async GenerarComprobantePDF(pedido, parametrosImpresion, tipoComprobante) {
+    async GenerarComprobantePDF(pedido, parametrosImpresion, tipoComprobante): Promise<Buffer> {
         const comprobante = this.GenerarDatosComunes(pedido, parametrosImpresion.papel);
 
         comprobante.papel = parametrosImpresion.papel;
@@ -179,11 +179,20 @@ class ComprobanteService {
     
         let totalProductoVariedad = pedido.detalles!.reduce((sum, item) => sum + (item.cantidad! * item.unitario!), 0);
         let total = totalProductoVariedad;
+
+        comprobante.tipoRecDes = pedido.pago!.tipoRecDes;
         if (pedido.pago!.descuento != 0) {
-            total -= (totalProductoVariedad * (pedido.pago!.descuento! / 100));
+            if(pedido.pago!.tipoRecDes == "Porcentaje")
+              total -= (totalProductoVariedad * (pedido.pago!.descuento! / 100));
+            else
+              total -= pedido.pago!.descuento!;
         }
+
         if (pedido.pago!.recargo != 0) {
-            total += (totalProductoVariedad * (pedido.pago!.recargo! / 100));
+            if(pedido.pago!.tipoRecDes == "Porcentaje")
+              total += (totalProductoVariedad * (pedido.pago!.recargo! / 100));
+            else
+              total += pedido.pago!.recargo!;
         }
     
         comprobante.totalProdVar = totalProductoVariedad;
@@ -237,8 +246,8 @@ class ComprobanteService {
           },
           
           { text: `Productos: ${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Descuento: ${comprobante.descuento}%`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Recargo: ${comprobante.recargo}%`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
           { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' }
         ],
         styles: {
@@ -285,7 +294,7 @@ class ComprobanteService {
     private ArmarInterno80(comprobante:ObjComprobante){
       return {
         pageSize: {
-          width: 227, 
+          width: 200, 
           height: 800,
         },
         pageMargins: [comprobante.margenIzq, 0, comprobante.margenDer, 0],
@@ -323,8 +332,8 @@ class ComprobanteService {
           },
           
           { text: `Productos: ${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Descuento: ${comprobante.descuento}%`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Recargo: ${comprobante.recargo}%`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
           { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' }
         ],
         styles: {
@@ -406,8 +415,8 @@ class ComprobanteService {
           },
           
           { text: `Productos: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Descuento: ${comprobante.descuento}%`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Recargo: ${comprobante.recargo}%`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
           { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' }
         ],
         styles: {
@@ -489,8 +498,8 @@ class ComprobanteService {
           },
           
           { text: `Productos: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Descuento: ${comprobante.descuento}%`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Recargo: ${comprobante.recargo}%`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
           { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' },
   
          ...((datosFactura.nroTipoFactura != 11) ? [
@@ -585,7 +594,7 @@ class ComprobanteService {
     private ArmarFactura80(comprobante:ObjComprobante, datosFactura:ObjTicketFactura){
       return {
         pageSize: {
-          width: 227,
+          width: 200,
           height: 800,
           pageOrientation: 'portrait',
         },
@@ -629,8 +638,8 @@ class ComprobanteService {
           },
           
           { text: `Productos: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Descuento: ${comprobante.descuento}%`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Recargo: ${comprobante.recargo}%`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
           { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' },
   
          ...((datosFactura.nroTipoFactura != 11) ? [
@@ -878,8 +887,8 @@ class ComprobanteService {
           
           //Detalle totales tabla productos
           { text: `Productos: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Descuento: ${comprobante.descuento}%`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Recargo: ${comprobante.recargo}%`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
+          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
           { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' },
 
           //Pie de página

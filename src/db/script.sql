@@ -26,7 +26,8 @@ CREATE TABLE parametros_impresion (
     margenDer INT DEFAULT 0,
     nomLocal VARCHAR(100),
     desLocal VARCHAR(100),
-    dirLocal VARCHAR(150)
+    dirLocal VARCHAR(150),
+    comandaDoble INT DEFAULT 0
 );
 
 DROP TABLE IF EXISTS parametros_mobile;
@@ -68,7 +69,7 @@ DROP TABLE IF EXISTS categorias;
 CREATE TABLE categorias (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(30),
-    icono VARCHAR(2),
+    icono VARCHAR(5),
     orden INT
 );
 
@@ -84,6 +85,7 @@ CREATE TABLE mesas (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     idSalon INT,
     codigo VARCHAR(8),
+    numero INT DEFAULT 0,
     codGrupo CHAR(36) DEFAULT '',
     idPedido INT DEFAULT 0,
     combinada VARCHAR(30) DEFAULT '',
@@ -219,20 +221,33 @@ CREATE TABLE pedidos_pago (
     idTPago INT,
     efectivo DECIMAL(10,2),
     digital DECIMAL(10,2),
-    descuento DECIMAL(4,2),
-    recargo DECIMAL(4,2),
+    descuento DECIMAL(10,2),
+    recargo DECIMAL(10,2),
+    tipoRecDes VARCHAR(10) DEFAULT 'Porcentaje',
     realizado BOOLEAN
 )ENGINE=InnoDB;
+
 
 DROP TABLE IF EXISTS tipos_pago;
 CREATE TABLE tipos_pago (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(15)
+    nombre VARCHAR(15),
+    icono VARCHAR(15),
+    color VARCHAR(15),
+    orden INT
 );
+INSERT INTO tipos_pago(id, nombre, icono, orden) 
+VALUES 
+(NULL,'EFECTIVO','monetization_on','#2dc051',1), 
+(NULL,'TRANSFERENCIA','account_balance','#2db6c8',2), 
+(NULL,'QR','qr_code','#fc7b9b',3), 
+(NULL,'TARJETA','credit_card','#ee8b29',4), 
+(NULL,'COMBINADO','autorenew','#7d7d7d',5);
+
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.7.4'),
+('version','1.8.0'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 
@@ -252,7 +267,6 @@ INSERT INTO parametros_mobile(imagenes, todasMesas, impComprobante)
 VALUES (0, 0, 0);
 
 INSERT INTO listas_precio(id, nombre) VALUES (NULL,'RESTAURANT'), (NULL,'PARA LLEVAR');
-INSERT INTO tipos_pago(id, nombre) VALUES (NULL,'EFECTIVO'), (NULL,'TARJETA'), (NULL,'TRANSFERENCIA'), (NULL,'COMBINADO');
 INSERT INTO cargos(id, nombre) VALUES (NULL,'ADMINISTRADOR'), (NULL,'EMPLEADO');
 INSERT INTO roles(id, nombre) VALUES (NULL,'ENCARGADO'), (NULL,'CAJERO'), (NULL,'MOZO'), (NULL,'DELIVERY');
 INSERT INTO categorias(id, nombre, icono, orden) VALUES (NULL,'SIN ASIGNAR', '🔺', 999);

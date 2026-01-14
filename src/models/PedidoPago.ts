@@ -7,6 +7,7 @@ export class PedidoPago{
     digital? : number;
     recargo? : number;
     descuento? : number;
+    tipoRecDes? : string;
     realizado? : boolean;
   
     constructor(data?: any) {
@@ -17,6 +18,7 @@ export class PedidoPago{
         this.digital = data.digital;
         this.recargo = data.recargo;
         this.descuento = data.descuento;
+        this.tipoRecDes = data.tipoRecDes;
         this.realizado = data.realizado;
       }
     }

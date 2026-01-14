@@ -19,6 +19,8 @@ const printer = new PdfPrinter(fonts);
 class ResumenService {
     async GenerarResumenPDF(resumen:ObjResumen, parametrosImpresion) {
         resumen.papel = parametrosImpresion.papel;
+        resumen.margenDer = parametrosImpresion.margenDer;
+        resumen.margenIzq = parametrosImpresion.margenIzq;
         
         const docDefinition = resumen.papel === '58mm'
             ? this.ArmarResumen58(resumen)
@@ -40,60 +42,6 @@ class ResumenService {
         });
     }
 
-    //Genera los datos comunes del documento y la estructura de la tabla
-    private GenerarDatosComunes(pedido:Pedido): ObjComanda {
-        let comanda = new ObjComanda();
-
-        comanda.nroPedido = pedido.id!;
-        comanda.mesa = pedido.mesa?.codigo!;
-        comanda.mozo = pedido.responsable?.nombre!;
-        comanda.observacion = pedido.obs!;
-        comanda.horaPedido = pedido.hora;
-        const fecha = new Date(pedido.fecha!);
-        comanda.fechaPedido = fecha.toLocaleDateString('es-ES', {
-        day: '2-digit', month: '2-digit', year: '2-digit'
-        });
-
-        const FormatearCantidad = (cantidad) => {
-        const cantNumero = parseFloat(cantidad);
-        return cantNumero % 1 === 0 ? cantNumero.toFixed(0) : cantNumero.toFixed(1);
-        };
-        
-        comanda.filasTabla = [
-        [
-            { text: 'C', style: 'tableHeader', alignment: 'left' },
-            { text: 'Variedad', style: 'tableHeader', alignment: 'left' }
-        ]
-        ];
-
-        pedido.detalles!.filter(item => item.tipoProd === 'elaborado')
-        .forEach(item => {
-
-        // Fila principal
-        comanda.filasTabla?.push([
-            FormatearCantidad(item.cantidad),
-            item.producto,
-        ]);
-
-        // Fila de observación si existe
-        if (item.obs && item.obs != "") {
-            comanda.filasTabla?.push([
-            {
-                text: `*    ${item.obs}`,
-                italics: true,
-                fontSize: comanda.papel == "58mm" ? 9 : 11,
-                colSpan: 2,
-                margin: [1, -2, 0, 2],
-                border: [false, false, false, false]
-            },
-            {} // Celda vacía requerida para completar el colSpan
-            ]);
-        }
-        });
-
-        return comanda;
-    }
-
     //#region TIPOS DE COMANDA
     private ArmarResumen58(resumen:ObjResumen){
         return {
@@ -101,7 +49,7 @@ class ResumenService {
                 width: 140,
                 height: 800,
             },
-            pageMargins: [1, 0, 1, 0],
+            pageMargins: [resumen.margenIzq, 0, resumen.margenDer, 0],
             content: [
                 { text: "Resumen de Caja", alignment:"center", style:'titulo' },
 
@@ -224,10 +172,10 @@ class ResumenService {
     private ArmarResumen80(resumen:ObjResumen){
         return {
             pageSize: {
-                width: 227,
+                width: 200,
                 height: 800,
             },
-            pageMargins: [1, 0, 1, 0],
+            pageMargins: [resumen.margenIzq, 0, resumen.margenDer, 0],
             content: [
                 { text: "Resumen de Caja", alignment:"center", style:'titulo' },
 

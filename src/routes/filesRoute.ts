@@ -20,26 +20,55 @@ router.post('/imprimir-pdf', async (req: Request, res: Response) => {
     const tipoComprobante = req.body.tipoComprobante;
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
 
-    const pdfBuffer =
-    tipoImpresion === "comanda"
-    ? await ComandaServ.GenerarComandaPDF(pedido, parametrosImpresion)
-    : await ComprobanteServ.GenerarComprobantePDF(pedido, parametrosImpresion, tipoComprobante)
-    
-    //Crear archivo temporal
-    const tempName = `impresion_${uuid()}.pdf`;
-    const tempPath = path.join(__dirname, '..', 'temp', tempName);
+    const imprimirPDF = async (pdfBuffer: Buffer) => {
+      const tempName = `impresion_${uuid()}.pdf`;
+      const tempPath = path.join(__dirname, '..', 'temp', tempName);
 
-    fs.writeFileSync(tempPath, pdfBuffer);
+      fs.writeFileSync(tempPath, pdfBuffer);
 
-    //Enviar a la impresora
-    await printer.print(tempPath, {
-      printer: parametrosImpresion.impresora,
-      orientation: 'portrait',
-      scale: 'noscale'
-    });
+      await printer.print(tempPath, {
+        printer: parametrosImpresion.impresora,
+        orientation: 'portrait',
+        scale: 'noscale'
+      });
 
-    //Eliminar archivo temporal
-    fs.unlinkSync(tempPath);
+      fs.unlinkSync(tempPath);
+    };
+
+    if (tipoImpresion === 'comanda') {
+      // Primera comanda: elaborado
+      const comandaElaborado = await ComandaServ.GenerarComandaPDF(
+        pedido,
+        parametrosImpresion,
+        'elaborado'
+      );
+
+      await imprimirPDF(comandaElaborado);
+
+      // Segunda comanda: terciarizado (si aplica)
+      if (parametrosImpresion.comandaDoble === 1) {
+        const filas = pedido.detalles!.filter(item => item.tipoProd == 'terciarizado' || item.producto?.includes("PROMO"));
+        if (filas.length > 0) {
+          const comandaTerciarizado = await ComandaServ.GenerarComandaPDF(
+            pedido,
+            parametrosImpresion,
+            'terciarizado'
+          );
+
+          await imprimirPDF(comandaTerciarizado);
+        }
+      }
+
+    } else {
+      // Comprobante normal
+      const comprobante = await ComprobanteServ.GenerarComprobantePDF(
+        pedido,
+        parametrosImpresion,
+        tipoComprobante
+      );
+
+      await imprimirPDF(comprobante);
+    }
 
     res.status(200).json('OK');
 

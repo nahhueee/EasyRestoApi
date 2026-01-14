@@ -1,5 +1,7 @@
 export class ObjResumen {
     papel:string = "58mm";
+    margenIzq:number = 0;
+    margenDer:number = 0;
     fecha?:Date;
     hora?:string;
     usuario?:string;

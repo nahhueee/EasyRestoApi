@@ -10,6 +10,7 @@ export class ObjComanda {
     filasTabla?:any[];
     margenIzq:number = 0;
     margenDer:number = 0;
+    doble:boolean = false;
 
     constructor(data?: any) {
         if (data) {
@@ -24,6 +25,7 @@ export class ObjComanda {
           this.filasTabla = data.filasTabla;
           this.margenIzq = data.margenIzq;
           this.margenDer = data.margenDer;
+          this.doble = data.doble;
         }
     }
 }

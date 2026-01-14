@@ -11,6 +11,7 @@ export class ObjComprobante {
     responsable?:string;
     descuento?:number;
     recargo?:number;
+    tipoRecDes?:string;
     filasTabla?:any[];
     totalProdVar?:number;
     totalFinal?:number;
@@ -26,6 +27,7 @@ export class ObjComprobante {
           this.fechaPedido = data.fechaPedido;
           this.horaPedido = data.horaPedido;
           this.descuento = data.descuento;
+          this.tipoRecDes = data.tipoRecDes;
           this.mesa = data.mesa;
           this.responsable = data.responsable;
           this.recargo = data.recargo;

@@ -53,6 +53,7 @@ class EstadisticasRepository{
                                      " COALESCE(SUM(CASE WHEN ppag.idTPago = 1 THEN efectivo ELSE 0 END), 0) AS efectivo, " +
                                      " COALESCE(SUM(CASE WHEN ppag.idTPago = 2 THEN digital ELSE 0 END), 0) AS tarjetas, " +
                                      " COALESCE(SUM(CASE WHEN ppag.idTPago = 3 THEN digital ELSE 0 END), 0) AS transferencias, " +
+                                     " COALESCE(SUM(CASE WHEN ppag.idTPago = 5 THEN digital ELSE 0 END), 0) AS qr, " +
                                      " COALESCE(SUM(CASE WHEN ppag.idTPago = 4 THEN digital ELSE 0 END), 0) AS otros " +
                                      " FROM pedidos_pago ppag " +
                                      " INNER JOIN pedidos p ON p.id = ppag.idPedido " +
@@ -66,6 +67,7 @@ class EstadisticasRepository{
                                      " SUM(CASE WHEN ppag.idTPago = 1 THEN 1 ELSE 0 END) AS cant_efectivo, " +
                                      " SUM(CASE WHEN ppag.idTPago = 2 THEN 1 ELSE 0 END) AS cant_tarjetas, " +
                                      " SUM(CASE WHEN ppag.idTPago = 3 THEN 1 ELSE 0 END) AS cant_transferencias, " +
+                                     " SUM(CASE WHEN ppag.idTPago = 5 THEN 1 ELSE 0 END) AS cant_qr, " +
                                      " SUM(CASE WHEN ppag.idTPago = 4 THEN 1 ELSE 0 END) AS cant_otros " +
                                      " FROM pedidos_pago ppag " +
                                      " INNER JOIN pedidos p ON p.id = ppag.idPedido " +
@@ -75,17 +77,17 @@ class EstadisticasRepository{
             const [resultCantidad] = await connection.query(consultaCantidad, [fechaDesde, fechaHasta]);
             //#endregion
 
-            console.log(resultTotales)
-
             return {
                 total_efectivo: parseFloat(resultTotales[0].efectivo),
                 total_tarjetas: parseFloat(resultTotales[0].tarjetas),
                 total_transferencias: parseFloat(resultTotales[0].transferencias),
+                total_qr: parseFloat(resultTotales[0].qr),
                 total_otros: parseFloat(resultTotales[0].otros),
 
                 cantidad_efectivo:resultCantidad[0].cant_efectivo,
                 cantidad_tarjetas:resultCantidad[0].cant_tarjetas,
                 cantidad_transferencias:resultCantidad[0].cant_transferencias,
+                cantidad_qr:resultCantidad[0].cant_qr,
                 cantidad_otros:resultCantidad[0].cant_otros,
             };
 

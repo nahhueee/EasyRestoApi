@@ -76,15 +76,21 @@ class PedidosRepository{
         pedido.detalles = await ObtenerDetallePedido(connection, row['id']); 
 
         pedido.responsable = new Usuario({id: row['idResponsable'], nombre: row['responsable']});
-        pedido.mesa = new Mesa({id: row['idMesa'], codigo: row['codigoMesa']});
-        pedido.tipo = new TipoPedido({id: row['idTipo'], nombre: row['tipo']});
+
+        const codigoMesa = row['codigoMesa'] != 'NO SELECCIONADA' ? row['codigoMesa'] + " | " + row['salon'] : row['codigoMesa'];
+        pedido.mesa = new Mesa({id: row['idMesa'], codigo: codigoMesa});
+        pedido.tipo = new TipoPedido(
+            {id: row['idTipo'], 
+             nombre: row['tipo']
+            });
 
         pedido.pago = new PedidoPago({
             efectivo: parseFloat(row['efectivo']), 
             digital: parseFloat(row['digital']), 
             recargo: parseFloat(row['recargo']), 
             descuento: parseFloat(row['descuento']), 
-            tipoPago: new TipoPago({id: row['idTipoPago'], nombre: row['tipoPago']}),
+            tipoPago: new TipoPago({id: row['idTipoPago'], nombre: row['tipoPago'], color: row['tpColor'], icono: row['tpIcono']}),
+            tipoRecDes: row['tipoRecDes'],
             realizado: row['realizado'],
         });
 
@@ -115,11 +121,15 @@ class PedidosRepository{
             //Iniciamos una transaccion
             await connection.beginTransaction();
 
+            if(pedido.mesa == null){
+                pedido.mesa = {id:0}
+            }
+
             //Insertamos la venta
             await InsertPedido(connection, pedido);
 
             //Marcamos la mesa como no disponible
-            if(pedido.mesa?.id != 1){
+            if(pedido.mesa?.id != 0){
                 await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]);
             }
 
@@ -156,11 +166,15 @@ class PedidosRepository{
             //Iniciamos una transaccion
             await connection.beginTransaction();
 
+            if(!pedido.mesa){
+                pedido.mesa = {id:0};
+            }
+
             //Insertamos la venta
             await UpdatePedido(connection, pedido);
 
             //Marcamos la mesa como no disponible
-            if(pedido.mesa?.id != 1){
+            if(pedido.mesa?.id != 0){
                 await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); //Desmarcamos la anterior
                 await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]); //Marcamos la nueva
             }
@@ -205,7 +219,7 @@ class PedidosRepository{
             await connection.query("UPDATE pedidos SET finalizado = ?, total = ? WHERE id = ?", [pedido.finalizado, pedido.total, pedido.id]);
 
             //Marcamos la mesa como disponible
-            if(pedido.mesa?.id != 1){
+            if(pedido.mesa?.id != 0){
                 await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); 
             }
 
@@ -247,6 +261,7 @@ class PedidosRepository{
         const connection = await db.getConnection();
         
         try {
+            console.log(data)
             await connection.query("UPDATE pedidos SET ticketImp = ?, comandaImp = ? WHERE id = ?", [data.ticketImp, data.comandaImp, data.idPedido]);
             return "OK";
              
@@ -370,10 +385,10 @@ async function InsertPedido(connection, pedido):Promise<void>{
 }
 async function InsertPagoPedido(connection, pago):Promise<void>{
     try {
-        const consulta = " INSERT INTO pedidos_pago(idPedido, idTPago, efectivo, digital, recargo, descuento, realizado) " +
-                         " VALUES(?, ?, ?, ?, ?, ?, ?) ";
+        const consulta = " INSERT INTO pedidos_pago(idPedido, idTPago, efectivo, digital, recargo, descuento, tipoRecDes, realizado) " +
+                         " VALUES(?, ?, ?, ?, ?, ?, ?, ?) ";
 
-        const parametros = [pago.idPedido, pago.tipoPago.id, pago.efectivo, pago.digital, pago.recargo, pago.descuento, pago.realizado];
+        const parametros = [pago.idPedido, pago.tipoPago.id, pago.efectivo, pago.digital, pago.recargo, pago.descuento, pago.tipoRecDes, pago.realizado];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -527,13 +542,14 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         //Arma la Query con el paginado y los filtros correspondientes
         query = count +
                 " SELECT p.*, " +
-                " tp.nombre tipo, COALESCE(u.nombre, 'NO SELECCIONADO') responsable, COALESCE(m.codigo, 'NO SELECCIONADA') codigoMesa, " + //Varios
-                " tpag.id idTipoPago, tpag.nombre tipoPago, pp.realizado, pp.efectivo, pp.digital, pp.recargo, pp.descuento, " + //Pago
+                " tp.nombre tipo, COALESCE(u.nombre, 'NO SELECCIONADO') responsable, COALESCE(m.numero, 'NO SELECCIONADA') codigoMesa, s.descripcion salon, " + //Varios
+                " tpag.id idTipoPago, tpag.nombre tipoPago, tpag.color tpColor, tpag.icono tpIcono, pp.realizado, pp.efectivo, pp.digital, pp.recargo, pp.descuento, pp.tipoRecDes, " + //Pago
                 " pfac.cae, pfac.caeVto, pfac.ticket, pfac.tipoFactura, pfac.neto, pfac.iva, pfac.dni, pfac.tipoDni, pfac.ptoVenta " + //Factura
                 " FROM pedidos p " +
                 " LEFT JOIN pedidos_tipo tp ON tp.id = p.idTipo " +
                 " LEFT JOIN usuarios u ON u.id = p.idResponsable " +
                 " LEFT JOIN mesas m ON m.id = p.idMesa " +
+                " LEFT JOIN salones s ON s.id = m.idSalon " +
                 " LEFT JOIN pedidos_pago pp ON pp.idPedido = p.id " +
                 " LEFT JOIN tipos_pago tpag ON tpag.id = pp.idTPago " +
                 " LEFT JOIN pedidos_factura pfac ON pfac.idPedido = p.id " +
