@@ -46,7 +46,12 @@ class EstadisticasRepository{
         
         try {
             const { fechaDesde, fechaHasta } = obtenerRangosFecha(filtros);
-            const adicional = filtros.caja && filtros.caja != 0 ? " AND p.idCaja = " + filtros.caja : " AND (p.fecha BETWEEN ? AND ?) ";
+            let adicional = filtros.caja && filtros.caja != 0 ? " AND p.idCaja = " + filtros.caja : " AND (p.fecha BETWEEN ? AND ?) ";
+            
+            if(filtros.usuario && filtros.usuario != 0)
+                adicional += " AND p.idResponsable = " + filtros.usuario;
+
+            console.log(filtros)
 
             //#region CONSULTAS
             const consultaTotales =  " SELECT  " +

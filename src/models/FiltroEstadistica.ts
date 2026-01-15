@@ -3,4 +3,5 @@ export class FiltroEstadistica {
     inicio?:Date;
     fin?:Date;
     caja?:number;
+    usuario?:number;
 }

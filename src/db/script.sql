@@ -247,7 +247,7 @@ VALUES
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.8.0'),
+('version','1.8.1'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 

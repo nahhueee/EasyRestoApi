@@ -261,7 +261,6 @@ class PedidosRepository{
         const connection = await db.getConnection();
         
         try {
-            console.log(data)
             await connection.query("UPDATE pedidos SET ticketImp = ?, comandaImp = ? WHERE id = ?", [data.ticketImp, data.comandaImp, data.idPedido]);
             return "OK";
              
