@@ -122,7 +122,7 @@ router.post('/ver-resumen', async (req: Request, res: Response) => {
     res.send(pdfBuffer);
 
   } catch (error: any) {
-    let msg = "Error al generar la comanda.";
+    let msg = "Error al generar el resumen.";
     logger.error(msg + " " + error.message);
     res.status(500).send(msg);
   }

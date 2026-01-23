@@ -26,6 +26,16 @@ router.get('/obtener-pedido/:id', async (req:Request, res:Response) => {
         res.status(500).send(msg);
     }
 });
+router.get('/obtener-pedidos-mozo/:idMozo/:idCaja', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await PedidosRepo.ObtenerPedidosMozo(req.params.idMozo, req.params.idCaja));
+
+    } catch(error:any){
+        let msg = "Error al obtener el listado de pedidos del responsable.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
 //#endregion
 
 //#region ABM

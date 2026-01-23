@@ -176,16 +176,16 @@ class ComandaService {
             margin: [0, 0, 0, 5]
             },
             datos: {
-            fontSize: 10,
+            fontSize: 11,
             margin: [3, 0, 0, 0]
             },
             observacion: {
-            fontSize: 10,
+            fontSize: 11,
             bold: false,
             margin: [3, 5, 0, 5]
             },
             tableStyle: {
-            fontSize: 9, // Cambiar el tamaño de letra de la tabla
+            fontSize: 10, // Cambiar el tamaño de letra de la tabla
             margin: [0, 0, 0, 3]
             }
         }

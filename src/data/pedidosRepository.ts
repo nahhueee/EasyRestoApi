@@ -42,6 +42,21 @@ class PedidosRepository{
         }
     }
 
+    async ObtenerPedidosMozo(idMozo, idCaja){
+        const connection = await db.getConnection();
+        
+        try {
+            let consulta = await ObtenerQuery({responsable:parseInt(idMozo), idCaja:parseInt(idCaja), finalizado:1},false);
+            const [rows] = await connection.query(consulta);
+            return rows;
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
     async ObtenerPedido(filtros){
         const connection = await db.getConnection();
 
@@ -517,7 +532,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         else
         {   
             if (filtros.idCaja != 0) { filtro += " AND p.idCaja = " + filtros.idCaja; }
-            if (filtros.tipoPedido != 0) { filtro += " AND p.idTipo = " + filtros.tipoPedido; }
+            if (filtros.tipoPedido && filtros.tipoPedido != 0) { filtro += " AND p.idTipo = " + filtros.tipoPedido; }
             if (filtros.responsable != 0) { filtro += " AND p.idResponsable = " + filtros.responsable; }
             if (filtros.cliente != null) { filtro += " AND p.cliente LIKE '%" + filtros.cliente + "%' "; }
 
@@ -541,7 +556,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         //Arma la Query con el paginado y los filtros correspondientes
         query = count +
                 " SELECT p.*, " +
-                " tp.nombre tipo, COALESCE(u.nombre, 'NO SELECCIONADO') responsable, COALESCE(m.numero, 'NO SELECCIONADA') codigoMesa, s.descripcion salon, " + //Varios
+                " tp.nombre tipo, COALESCE(u.nombre, 'NO SELECCIONADO') responsable, COALESCE(m.numero, 'NO SELECCIONADA') codigoMesa,  COALESCE(m.numero, 0) numero, s.descripcion salon, " + //Varios
                 " tpag.id idTipoPago, tpag.nombre tipoPago, tpag.color tpColor, tpag.icono tpIcono, pp.realizado, pp.efectivo, pp.digital, pp.recargo, pp.descuento, pp.tipoRecDes, " + //Pago
                 " pfac.cae, pfac.caeVto, pfac.ticket, pfac.tipoFactura, pfac.neto, pfac.iva, pfac.dni, pfac.tipoDni, pfac.ptoVenta " + //Factura
                 " FROM pedidos p " +

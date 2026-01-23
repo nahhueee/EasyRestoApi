@@ -4,6 +4,7 @@ import { Pedido } from "../models/Pedido";
 import PdfPrinter from 'pdfmake';
 import { ObjResumen } from "../models/ObjResumen";
 import moment from "moment";
+import { TipoPago } from "../models/TipoPago";
 
 const fonts = {
   Roboto: {
@@ -22,6 +23,37 @@ class ResumenService {
         resumen.margenDer = parametrosImpresion.margenDer;
         resumen.margenIzq = parametrosImpresion.margenIzq;
         
+        resumen.filasTabla = [
+            [
+                { text: 'M', style: 'tableHeader', alignment: 'center' },
+                { text: 'Total', style: 'tableHeader', alignment: 'left' },
+                { text: 'TP', style: 'tableHeader', alignment: 'center' }
+            ]
+        ];
+
+        const FormatearTipoPago = (tipoPago) => {
+            switch (tipoPago) {
+                case "EFECTIVO":
+                    return "EFE";
+                case "TRANSFERENCIA":
+                    return "TRA";
+                case "TARJETA":
+                    return "TAR";
+                case "QR":
+                    return "QR";
+                default:
+                    break;
+            }
+        };
+        
+        resumen.detalles!.forEach(item => {
+            resumen.filasTabla?.push([
+                item.numero,
+                "$" + parseFloat(item.total).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                FormatearTipoPago(item.tipoPago)
+            ]);
+        });
+
         const docDefinition = resumen.papel === '58mm'
             ? this.ArmarResumen58(resumen)
             : this.ArmarResumen80(resumen);
@@ -51,72 +83,87 @@ class ResumenService {
             },
             pageMargins: [resumen.margenIzq, 0, resumen.margenDer, 0],
             content: [
+
                 { text: "Resumen de Caja", alignment:"center", style:'titulo' },
-
                 { text: moment(resumen.fecha).format('DD-MM-YY') + " " +  resumen.hora, alignment:"center", style:'fecha' },
-                { text: resumen.usuario, alignment:"center", style:'usuario' },
 
-                {
-                text: [
-                    { text: 'Inicial: '},
-                    { text: resumen.inicial!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Pedidos: '},
-                    { text: resumen.pedidos!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Entradas: '},
-                    { text: resumen.entradas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Salidas: '},
-                    { text: resumen.salidas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Total: ', bold: true },
-                    { text: resumen.total!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
+                ...((resumen.mozo == 'TODOS') ? [ 
+                    
+                    { text: resumen.usuario, alignment:"center", style:'usuario' },
+
+                    {
+                    text: [
+                        { text: 'Inicial: '},
+                        { text: resumen.inicial!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                    {
+                    text: [
+                        { text: 'Pedidos: '},
+                        { text: resumen.pedidos!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                    {
+                    text: [
+                        { text: 'Entradas: '},
+                        { text: resumen.entradas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                    {
+                    text: [
+                        { text: 'Salidas: '},
+                        { text: resumen.salidas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                    {
+                    text: [
+                        { text: 'Total: ', bold: true },
+                        { text: resumen.total!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                ] : [
+                    { text: resumen.mozo, alignment:"center", style:'usuario' },
+                ]),
+
+                
 
                 { text: "Métodos de pago", alignment:"center", style:'subtitulo' },
                 {
                 text: [
-                    { text: 'T Efectivo: '},
+                    { text: 'Efectivo: '},
                     { text: resumen.efectivo!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
                 },
                 {
                 text: [
-                    { text: 'T Transferencia: '},
+                    { text: 'Transferencia: '},
                     { text: resumen.transferencia!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
                 },
                 {
                 text: [
-                    { text: 'T Tarjeta: '},
+                    { text: 'QR: '},
+                    { text: resumen.qr!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                ],
+                style: 'datos'
+                },
+                {
+                text: [
+                    { text: 'Tarjeta: '},
                     { text: resumen.tarjetas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
                 },
                 {
                 text: [
-                    { text: 'T Resto Comb: '},
+                    { text: 'Resto Comb: '},
                     { text: resumen.restoCombinado!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
@@ -137,6 +184,34 @@ class ResumenService {
                 ],
                 style: 'datos'
                 },
+
+                ...((resumen.mozo != 'TODOS') ? [ 
+                    
+                    {
+                        table: {
+                            widths: ['auto', '*', 'auto'],
+                            body: resumen.filasTabla
+                        },
+                        layout: {
+                            fillColor: function (rowIndex, node, columnIndex) {
+                                return rowIndex === 0 ? '#CCCCCC' : null;
+                            },
+                            hLineWidth: function (i, node) {
+                            // Línea después del header (i == 1) y después de la última fila (i == node.table.body.length)
+                            return (i === 1 || i === node.table.body.length) ? 1 : 0;
+                            },
+                            vLineWidth: function (i, node) {
+                            return 0;
+                            },
+                            hLineColor: function (i, node) {
+                            return i === 1 ? 'black' : '#CCCCCC';
+                            },
+                            paddingTop: function (i, node) { return 2; },
+                            paddingBottom: function (i, node) { return 2; },
+                        },
+                        style: 'tableStyle' // Aplicar el estilo a la tabla
+                    },
+                ] : []),
             ],
             styles: {
                 titulo: {
@@ -165,6 +240,10 @@ class ResumenService {
                 fontSize: 10,
                 margin: [3, 10, 0, 0]
                 },
+                tableStyle: {
+                fontSize: 10, // Cambiar el tamaño de letra de la tabla
+                margin: [0, 5, 0, 3]
+                }
             }
         };
     }
@@ -178,71 +257,83 @@ class ResumenService {
             pageMargins: [resumen.margenIzq, 0, resumen.margenDer, 0],
             content: [
                 { text: "Resumen de Caja", alignment:"center", style:'titulo' },
-
                 { text: moment(resumen.fecha).format('DD-MM-YY') + " " +  resumen.hora, alignment:"center", style:'fecha' },
-                { text: resumen.usuario, alignment:"center", style:'usuario' },
 
-                {
-                text: [
-                    { text: 'Inicial: '},
-                    { text: resumen.inicial!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Pedidos: '},
-                    { text: resumen.pedidos!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Entradas: '},
-                    { text: resumen.entradas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Salidas: '},
-                    { text: resumen.salidas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Total: ', bold: true },
-                    { text: resumen.total!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
+                ...((resumen.mozo == 'TODOS') ? [ 
+                    
+                    { text: resumen.usuario, alignment:"center", style:'usuario' },
+
+                    {
+                    text: [
+                        { text: 'Inicial: '},
+                        { text: resumen.inicial!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                    {
+                    text: [
+                        { text: 'Pedidos: '},
+                        { text: resumen.pedidos!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                    {
+                    text: [
+                        { text: 'Entradas: '},
+                        { text: resumen.entradas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                    {
+                    text: [
+                        { text: 'Salidas: '},
+                        { text: resumen.salidas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                    {
+                    text: [
+                        { text: 'Total: ', bold: true },
+                        { text: resumen.total!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                    ],
+                    style: 'datos'
+                    },
+                ] : [
+                    { text: resumen.mozo, alignment:"center", style:'usuario' },
+                ]),
 
                 { text: "Métodos de pago", alignment:"center", style:'subtitulo' },
                 {
                 text: [
-                    { text: 'T Efectivo: '},
+                    { text: 'Efectivo: '},
                     { text: resumen.efectivo!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
                 },
                 {
                 text: [
-                    { text: 'T Transferencia: '},
+                    { text: 'Transferencia: '},
                     { text: resumen.transferencia!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
                 },
                 {
                 text: [
-                    { text: 'T Tarjeta: '},
+                    { text: 'QR: '},
+                    { text: resumen.qr!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
+                ],
+                style: 'datos'
+                },
+                {
+                text: [
+                    { text: 'Tarjeta: '},
                     { text: resumen.tarjetas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
                 },
                 {
                 text: [
-                    { text: 'T Resto Comb: '},
+                    { text: 'Resto Comb: '},
                     { text: resumen.restoCombinado!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
@@ -263,6 +354,34 @@ class ResumenService {
                 ],
                 style: 'datos'
                 },
+
+                ...((resumen.mozo != 'TODOS') ? [ 
+                    
+                    {
+                        table: {
+                            widths: ['auto', '*', 'auto'],
+                            body: resumen.filasTabla
+                        },
+                        layout: {
+                            fillColor: function (rowIndex, node, columnIndex) {
+                                return rowIndex === 0 ? '#CCCCCC' : null;
+                            },
+                            hLineWidth: function (i, node) {
+                            // Línea después del header (i == 1) y después de la última fila (i == node.table.body.length)
+                            return (i === 1 || i === node.table.body.length) ? 1 : 0;
+                            },
+                            vLineWidth: function (i, node) {
+                            return 0;
+                            },
+                            hLineColor: function (i, node) {
+                            return i === 1 ? 'black' : '#CCCCCC';
+                            },
+                            paddingTop: function (i, node) { return 2; },
+                            paddingBottom: function (i, node) { return 2; },
+                        },
+                        style: 'tableStyle' // Aplicar el estilo a la tabla
+                    },
+                ] : []),
             ],
             styles: {
                 titulo: {
@@ -291,6 +410,10 @@ class ResumenService {
                 fontSize: 12,
                 margin: [3, 10, 0, 0]
                 },
+                tableStyle: {
+                fontSize: 11, // Cambiar el tamaño de letra de la tabla
+                margin: [0, 5, 0, 3]
+                }
             }
         };
     }
