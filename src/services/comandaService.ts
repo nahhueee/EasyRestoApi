@@ -70,7 +70,7 @@ class ComandaService {
 
         //TODO
         //TEMPORAL - Buscar la forma de estandarizar esto con las promociones
-        pedido.detalles!.filter(item => item.tipoProd == tipo || item.producto?.includes("PROMO"))
+        pedido.detalles!.filter(item => (item.tipoProd == tipo || item.producto?.includes("PROMO")) && item.quitado == false)
         .forEach(item => {
 
             // Fila principal

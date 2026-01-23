@@ -196,6 +196,7 @@ CREATE TABLE pedidos_detalle (
     unitario DECIMAL(10,2),
     total DECIMAL(10,2),
     obs VARCHAR(150),
+    quitado INT DEFAULT 0,
     
     PRIMARY KEY(id,idPedido)
 )ENGINE=InnoDB;
@@ -247,7 +248,7 @@ VALUES
 
 INSERT INTO parametros(clave, valor) 
 VALUES 
-('version','1.8.1'),
+('version','1.8.3'),
 ('dni',''), 
 ('expresion',''), 
 ('backups', 'false'), 

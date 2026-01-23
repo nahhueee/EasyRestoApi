@@ -168,7 +168,7 @@ class ComprobanteService {
             ]
         ];
     
-        pedido.detalles!.forEach(item => {
+        pedido.detalles!.filter(item => item.quitado == false).forEach(item => {
             comprobante.filasTabla?.push([
             FormatearCantidad(item.cantidad),
             CortarNombreProducto(item.producto),
@@ -180,7 +180,7 @@ class ComprobanteService {
         let totalProductoVariedad = pedido.detalles!.reduce((sum, item) => sum + (item.cantidad! * item.unitario!), 0);
         let total = totalProductoVariedad;
 
-        comprobante.tipoRecDes = pedido.pago!.tipoRecDes;
+        comprobante.tipoRecDes = pedido.pago?.tipoRecDes ?? "Porcentaje";
         if (pedido.pago!.descuento != 0) {
             if(pedido.pago!.tipoRecDes == "Porcentaje")
               total -= (totalProductoVariedad * (pedido.pago!.descuento! / 100));

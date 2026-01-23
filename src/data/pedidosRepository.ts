@@ -472,6 +472,7 @@ async function ObtenerDetallePedido(connection, idPedido:number){
                 detalle.idProducto = row['idProducto'];
                 detalle.tipoProd = row['tipo'];
                 detalle.obs = row['obs'];
+                detalle.quitado = row['quitado'] == 1 ? true : false;
                 detalles.push(detalle)
               }
         }
@@ -485,10 +486,10 @@ async function ObtenerDetallePedido(connection, idPedido:number){
 
 async function InsertDetallePedido(connection, detalle):Promise<void>{
     try {
-        const consulta = " INSERT INTO pedidos_detalle(idPedido, idProducto, descripcion, cantidad, costo, unitario, total, obs) " +
-                         " VALUES(?, ?, ?, ?, ?, ?, ?, ?) ";
+        const consulta = " INSERT INTO pedidos_detalle(idPedido, idProducto, descripcion, cantidad, costo, unitario, total, obs, quitado) " +
+                         " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) ";
 
-        const parametros = [detalle.idPedido, detalle.idProducto, detalle.producto, detalle.cantidad, detalle.costo, detalle.unitario, detalle.total, detalle.obs];
+        const parametros = [detalle.idPedido, detalle.idProducto, detalle.producto, detalle.cantidad, detalle.costo, detalle.unitario, detalle.total, detalle.obs, detalle.quitado ? 1 : 0];
         await connection.query(consulta, parametros);
         
     } catch (error) {

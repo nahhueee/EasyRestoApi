@@ -9,6 +9,7 @@ export class DetallePedido{
     unitario?: number;
     total?: number;
     obs?: string;
+    quitado?: boolean;
   
     constructor(data?: any) {
       if (data) {
@@ -22,6 +23,7 @@ export class DetallePedido{
         this.tipoProd = data.tipoProd;
         this.total = data.total;
         this.obs = data.obs;
+        this.quitado = data.quitado;
       }
     }
   }
