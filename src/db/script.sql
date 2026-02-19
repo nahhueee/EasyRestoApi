@@ -169,6 +169,7 @@ CREATE TABLE pedidos (
     cliente VARCHAR(30),
     fecha DATE,
     fechaBaja DATE,
+    obsBaja VARCHAR(200),
     hora VARCHAR(5),
     obs VARCHAR(200),
     total DECIMAL(10,2),
@@ -219,15 +220,21 @@ CREATE TABLE pedidos_factura (
 DROP TABLE IF EXISTS pedidos_pago;
 CREATE TABLE pedidos_pago (
     idPedido INT PRIMARY KEY,
-    idTPago INT,
-    efectivo DECIMAL(10,2),
-    digital DECIMAL(10,2),
+    monto INT DEFAULT 0,
     descuento DECIMAL(10,2),
     recargo DECIMAL(10,2),
     tipoRecDes VARCHAR(10) DEFAULT 'Porcentaje',
     realizado BOOLEAN
 )ENGINE=InnoDB;
 
+CREATE TABLE pedidos_pagos_detalle (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    idPedido INT UNSIGNED NOT NULL,
+    idTPago INT NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (idPedido) REFERENCES pedidos(id)
+);
 
 DROP TABLE IF EXISTS tipos_pago;
 CREATE TABLE tipos_pago (

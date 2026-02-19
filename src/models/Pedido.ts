@@ -1,3 +1,4 @@
+import { DetallePago } from "./DetallePago";
 import { Mesa } from "./Mesa";
 import { DetallePedido } from "./PedidoDetalle";
 import { PedidoFactura } from "./PedidoFactura";
@@ -21,8 +22,11 @@ export class Pedido {
     comandaImp?: string;
 
     pago? : PedidoPago;
+    detallePago: DetallePago[] = []; 
     factura? : PedidoFactura;
     detalles? : DetallePedido[] = [];
+
+    obsBaja:string = "";
   
     constructor(data?: any) {
       if (data) {
@@ -41,6 +45,7 @@ export class Pedido {
         this.detalles = data.detalles;
         this.obs = data.obs;
         this.cliente = data.cliente;
+        this.obsBaja = data.obsBaja;
       }
     }
 }

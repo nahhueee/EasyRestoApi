@@ -33,6 +33,7 @@ class MesasRepository{
                     SELECT 
                         m.id,
                         m.numero,
+                        m.idPedido,
                         CASE 
                             WHEN m.combinada <> '' THEN CONCAT(s.descripcion, ' | ', m.combinada)
                             ELSE CONCAT(s.descripcion, ' | ', m.numero)
@@ -81,6 +82,7 @@ class MesasRepository{
                     mesas.push(mesa);
                 }
             }
+
             return mesas;
 
         } catch (error:any) {

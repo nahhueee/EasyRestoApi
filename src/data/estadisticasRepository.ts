@@ -1,6 +1,7 @@
 import moment from 'moment';
 import db from '../db/db.config';
 import { FiltroEstadistica } from '../models/FiltroEstadistica';
+import { query } from 'express';
 
 class EstadisticasRepository{
 
@@ -51,33 +52,42 @@ class EstadisticasRepository{
             if(filtros.usuario && filtros.usuario != 0)
                 adicional += " AND p.idResponsable = " + filtros.usuario;
 
-            console.log(filtros)
-
             //#region CONSULTAS
             const consultaTotales =  " SELECT  " +
-                                     " COALESCE(SUM(CASE WHEN ppag.idTPago = 1 THEN efectivo ELSE 0 END), 0) AS efectivo, " +
-                                     " COALESCE(SUM(CASE WHEN ppag.idTPago = 2 THEN digital ELSE 0 END), 0) AS tarjetas, " +
-                                     " COALESCE(SUM(CASE WHEN ppag.idTPago = 3 THEN digital ELSE 0 END), 0) AS transferencias, " +
-                                     " COALESCE(SUM(CASE WHEN ppag.idTPago = 5 THEN digital ELSE 0 END), 0) AS qr, " +
-                                     " COALESCE(SUM(CASE WHEN ppag.idTPago = 4 THEN digital ELSE 0 END), 0) AS otros " +
-                                     " FROM pedidos_pago ppag " +
-                                     " INNER JOIN pedidos p ON p.id = ppag.idPedido " +
+                                     " COALESCE(SUM(CASE WHEN ppd.idTPago = 1 THEN ppd.monto ELSE 0 END), 0) AS efectivo, " +
+                                     " COALESCE(SUM(CASE WHEN ppd.idTPago = 2 THEN ppd.monto ELSE 0 END), 0) AS tarjetas, " +
+                                     " COALESCE(SUM(CASE WHEN ppd.idTPago = 3 THEN ppd.monto ELSE 0 END), 0) AS transferencias, " +
+                                     " COALESCE(SUM(CASE WHEN ppd.idTPago = 5 THEN ppd.monto ELSE 0 END), 0) AS qr " +
+                                     " FROM pedidos_pagos_detalle ppd " +
+                                     " INNER JOIN pedidos p ON p.id = ppd.idPedido " +
+                                     " INNER JOIN pedidos_pago ppag ON p.id = ppag.idPedido " +
                                      " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1 " +
                                      adicional;
-
-
             const [resultTotales] = await connection.query(consultaTotales, [fechaDesde, fechaHasta]);
 
             const consultaCantidad = " SELECT  " +
-                                     " SUM(CASE WHEN ppag.idTPago = 1 THEN 1 ELSE 0 END) AS cant_efectivo, " +
-                                     " SUM(CASE WHEN ppag.idTPago = 2 THEN 1 ELSE 0 END) AS cant_tarjetas, " +
-                                     " SUM(CASE WHEN ppag.idTPago = 3 THEN 1 ELSE 0 END) AS cant_transferencias, " +
-                                     " SUM(CASE WHEN ppag.idTPago = 5 THEN 1 ELSE 0 END) AS cant_qr, " +
-                                     " SUM(CASE WHEN ppag.idTPago = 4 THEN 1 ELSE 0 END) AS cant_otros " +
-                                     " FROM pedidos_pago ppag " +
-                                     " INNER JOIN pedidos p ON p.id = ppag.idPedido " +
-                                     " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1 " +
-                                     adicional;
+                                     " SUM(categoria = 'EFECTIVO') AS cant_efectivo, " +
+                                     " SUM(categoria = 'TARJETA') AS cant_tarjetas, " +
+                                     " SUM(categoria = 'TRANSFERENCIA') AS cant_transferencias, " +
+                                     " SUM(categoria = 'QR') AS cant_qr, " +
+                                     " SUM(categoria = 'COMBINADO') AS cant_combinado " +
+                                     " FROM ( " +
+                                     " SELECT  p.id, " +
+                                     " CASE " +
+                                     "  WHEN COUNT(DISTINCT ppd.idTPago) > 1 THEN 'COMBINADO' " +
+                                     " WHEN MIN(ppd.idTPago) = 1 THEN 'EFECTIVO' " + 
+                                     " WHEN MIN(ppd.idTPago) = 2 THEN 'TARJETA' " + 
+                                     " WHEN MIN(ppd.idTPago) = 3 THEN 'TRANSFERENCIA' " + 
+                                     " WHEN MIN(ppd.idTPago) = 5 THEN 'QR' " + 
+                                     " END AS categoria " + 
+                                     " FROM pedidos p " + 
+                                     " INNER JOIN pedidos_pagos_detalle ppd ON p.id = ppd.idPedido " + 
+                                     " INNER JOIN pedidos_pago ppag ON p.id = ppag.idPedido " + 
+                                     " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1" + 
+                                     adicional +
+                                     " GROUP BY p.id " + 
+                                     " ) t;";
+
 
             const [resultCantidad] = await connection.query(consultaCantidad, [fechaDesde, fechaHasta]);
             //#endregion
@@ -87,13 +97,12 @@ class EstadisticasRepository{
                 total_tarjetas: parseFloat(resultTotales[0].tarjetas),
                 total_transferencias: parseFloat(resultTotales[0].transferencias),
                 total_qr: parseFloat(resultTotales[0].qr),
-                total_otros: parseFloat(resultTotales[0].otros),
-
+                
                 cantidad_efectivo:resultCantidad[0].cant_efectivo,
                 cantidad_tarjetas:resultCantidad[0].cant_tarjetas,
                 cantidad_transferencias:resultCantidad[0].cant_transferencias,
                 cantidad_qr:resultCantidad[0].cant_qr,
-                cantidad_otros:resultCantidad[0].cant_otros,
+                cantidad_combinado:resultCantidad[0].cant_combinado,
             };
 
         } catch (error:any) {

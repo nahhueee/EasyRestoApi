@@ -1,3 +1,4 @@
+import { DetallePago } from "./DetallePago";
 import { Pedido } from "./Pedido";
 
 export class ObjResumen {
@@ -13,7 +14,7 @@ export class ObjResumen {
     entradas?:number;
     salidas?:number;
     total?:number;
-    detalles?:any[];
+    detalles?:ObjResumenPagos[];
     filasTabla?:any[];
 
     efectivo?:number;
@@ -23,4 +24,12 @@ export class ObjResumen {
     restoCombinado?:number;
 
     cantPedidos?:number;
+}
+
+export class ObjResumenPagos {
+    idPedido: number = 0;
+    monto:number = 0;
+    metodoPago:string = "";
+    metodoPagoAbrev:string = "";
+    pagos: DetallePago[] = [];
 }

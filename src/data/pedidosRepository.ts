@@ -9,6 +9,8 @@ import { PedidoPago } from '../models/PedidoPago';
 import { PedidoFactura } from '../models/PedidoFactura';
 import { ObjQR } from '../models/ObjQR';
 import { TipoPago } from '../models/TipoPago';
+import { DetallePago } from '../models/DetallePago';
+import { ObjResumenPagos } from '../models/ObjResumen';
 
 class PedidosRepository{
 
@@ -17,7 +19,7 @@ class PedidosRepository{
         const connection = await db.getConnection();
         
         try {
-             //Obtengo la query segun los filtros
+            //Obtengo la query segun los filtros
             let queryRegistros = await ObtenerQuery(filtros,false);
             let queryTotal = await ObtenerQuery(filtros,true);
 
@@ -48,7 +50,61 @@ class PedidosRepository{
         try {
             let consulta = await ObtenerQuery({responsable:parseInt(idMozo), idCaja:parseInt(idCaja), finalizado:1},false);
             const [rows] = await connection.query(consulta);
-            return rows;
+           
+            const pedidos:ObjResumenPagos[] = [];
+           
+            if (Array.isArray(rows)) {
+                for (let i = 0; i < rows.length; i++) { 
+                    const row = rows[i];
+                    let pedido:ObjResumenPagos = new ObjResumenPagos();
+                    pedido.idPedido = row['id'];
+                    pedido.monto = parseFloat(row['total']);
+                    pedido.pagos = await ObtenerDetallePagos(connection, row['id']); 
+
+                    const pagoVisual = getPagoVisual(pedido.pagos);
+                    pedido.metodoPago = pagoVisual?.nombre!;
+                    pedido.metodoPagoAbrev = pagoVisual?.abreviatura!;
+
+                    pedidos.push(pedido);
+                  }
+            }
+
+            return pedidos;
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
+     async ObtenerPedidosEnBaja(idCaja){
+        const connection = await db.getConnection();
+        
+        try {
+            //Obtengo la query segun los filtros
+            const query = 
+                " SELECT p.*, " +
+                " tp.nombre tipo, COALESCE(u.nombre, 'NO SELECCIONADO') responsable, COALESCE(m.numero, 'NO SELECCIONADA') codigoMesa,  COALESCE(m.numero, 0) numero, s.descripcion salon" + 
+                " FROM pedidos p " +
+                " LEFT JOIN pedidos_tipo tp ON tp.id = p.idTipo " +
+                " LEFT JOIN usuarios u ON u.id = p.idResponsable " +
+                " LEFT JOIN mesas m ON m.id = p.idMesa " +
+                " LEFT JOIN salones s ON s.id = m.idSalon " +
+                " WHERE p.idCaja = ? " +
+                " ORDER BY p.id DESC ";
+               
+            const [rows] = await connection.query(query, [idCaja]);
+            const pedidos:Pedido[] = [];
+           
+            if (Array.isArray(rows)) {
+                for (let i = 0; i < rows.length; i++) { 
+                    const row = rows[i];
+                    pedidos.push(await this.ArmarObjetoPedido(connection, row, true));
+                  }
+            }
+
+            return pedidos;
 
         } catch (error:any) {
             throw error;
@@ -74,7 +130,7 @@ class PedidosRepository{
         }
     }
 
-    async ArmarObjetoPedido(connection, row){
+    async ArmarObjetoPedido(connection, row, bajas:boolean=false){
         let pedido:Pedido = new Pedido();
         pedido.id = row['id'];
         pedido.idCaja = row['idCaja'];
@@ -86,41 +142,39 @@ class PedidosRepository{
         pedido.finalizado = row['finalizado'];
         pedido.ticketImp = row['ticketImp'];
         pedido.comandaImp = row['comandaImp'];
+        pedido.responsable = new Usuario({id: row['idResponsable'], nombre: row['responsable']});
+        pedido.tipo = new TipoPedido({id: row['idTipo'], nombre: row['tipo']});
+        pedido.obsBaja = row['obsBaja'];
         
+        const codigoMesa = row['codigoMesa'] != 'NO SELECCIONADA' ? row['codigoMesa'] + " | " + row['salon'] : row['codigoMesa'];
+        pedido.mesa = new Mesa({id: row['idMesa'], codigo: codigoMesa});
+
         //Obtiene la lista de detalles del pedido
         pedido.detalles = await ObtenerDetallePedido(connection, row['id']); 
 
-        pedido.responsable = new Usuario({id: row['idResponsable'], nombre: row['responsable']});
-
-        const codigoMesa = row['codigoMesa'] != 'NO SELECCIONADA' ? row['codigoMesa'] + " | " + row['salon'] : row['codigoMesa'];
-        pedido.mesa = new Mesa({id: row['idMesa'], codigo: codigoMesa});
-        pedido.tipo = new TipoPedido(
-            {id: row['idTipo'], 
-             nombre: row['tipo']
+        if(!bajas){
+            pedido.pago = new PedidoPago({
+                recargo: parseFloat(row['recargo']), 
+                descuento: parseFloat(row['descuento']), 
+                tipoRecDes: row['tipoRecDes'],
+                realizado: row['realizado'],
             });
 
-        pedido.pago = new PedidoPago({
-            efectivo: parseFloat(row['efectivo']), 
-            digital: parseFloat(row['digital']), 
-            recargo: parseFloat(row['recargo']), 
-            descuento: parseFloat(row['descuento']), 
-            tipoPago: new TipoPago({id: row['idTipoPago'], nombre: row['tipoPago'], color: row['tpColor'], icono: row['tpIcono']}),
-            tipoRecDes: row['tipoRecDes'],
-            realizado: row['realizado'],
-        });
+            pedido.detallePago = await ObtenerDetallePagos(connection, row['id']); 
 
-        pedido.factura = new PedidoFactura({
-            cae: row['cae'], 
-            caeVto: row['caeVto'], 
-            ticket: row['ticket'], 
-            tipoFactura: row['tipoFactura'], 
-            neto: parseFloat(row['neto']), 
-            iva: parseFloat(row['iva']), 
-            dni: row['dni'],
-            tipoDni: row['tipoDni'],
-            ptoVenta: row['ptoVenta'],
-        });
-
+            pedido.factura = new PedidoFactura({
+                cae: row['cae'], 
+                caeVto: row['caeVto'], 
+                ticket: row['ticket'], 
+                tipoFactura: row['tipoFactura'], 
+                neto: parseFloat(row['neto']), 
+                iva: parseFloat(row['iva']), 
+                dni: row['dni'],
+                tipoDni: row['tipoDni'],
+                ptoVenta: row['ptoVenta'],
+            });
+        }
+        
         return pedido;
     }
     //#endregion
@@ -158,7 +212,8 @@ class PedidosRepository{
             if(pedido.pago){
                 await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
                 pedido.pago.idPedido = pedido.id;
-                await InsertPagoPedido(connection, pedido.pago)
+                await InsertPagoPedido(connection, pedido.pago);
+                //await InsertPagoPedidoDetalle(connection, pedido.pago);
             }
 
             //Mandamos la transaccion
@@ -207,7 +262,7 @@ class PedidosRepository{
             if(pedido.pago){
                 await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
                 pedido.pago.idPedido = pedido.id;
-                await InsertPagoPedido(connection, pedido.pago)
+                await InsertPagoPedido(connection, pedido.pago);
             }
 
             //Mandamos la transaccion
@@ -241,8 +296,14 @@ class PedidosRepository{
             //Si esta finalizando agregamos los detalles del pago
             if(pedido.pago && pedido.finalizado == 1){
                 await connection.query("DELETE FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
+                await connection.query("DELETE FROM pedidos_pagos_detalle WHERE idPedido = ?", [pedido.id]);
                 pedido.pago.idPedido = pedido.id;
-                await InsertPagoPedido(connection, pedido.pago)
+                pedido.pago.monto = pedido.total;
+                await InsertPagoPedido(connection, pedido.pago);
+
+                for (const element of  pedido.detallePago!) {
+                    await InsertPagoPedidoDetalle(connection, element);
+                }
             }
 
             //Guardamos datos de facturacion
@@ -302,15 +363,15 @@ class PedidosRepository{
         }
     }
 
-    async Eliminar(id:string): Promise<string>{
+    async Eliminar(id:string, obs:string): Promise<string>{
         const connection = await db.getConnection();
         try {
             await connection.beginTransaction();
 
             //Bajamos el pedido
             await connection.query(
-                "UPDATE pedidos SET fechaBaja = ? WHERE id = ?",
-                [new Date(), id]
+                "UPDATE pedidos SET fechaBaja = ?, obsBaja = ? WHERE id = ?",
+                [new Date(), obs, id]
             );
 
             //Marcamos la mesa como disponible
@@ -399,16 +460,30 @@ async function InsertPedido(connection, pedido):Promise<void>{
 }
 async function InsertPagoPedido(connection, pago):Promise<void>{
     try {
-        const consulta = " INSERT INTO pedidos_pago(idPedido, idTPago, efectivo, digital, recargo, descuento, tipoRecDes, realizado) " +
-                         " VALUES(?, ?, ?, ?, ?, ?, ?, ?) ";
+        const consulta = " INSERT INTO pedidos_pago(idPedido, recargo, descuento, tipoRecDes, realizado, monto) " +
+                         " VALUES(?, ?, ?, ?, ?, ?) ";
 
-        const parametros = [pago.idPedido, pago.tipoPago.id, pago.efectivo, pago.digital, pago.recargo, pago.descuento, pago.tipoRecDes, pago.realizado];
+        const parametros = [pago.idPedido, pago.recargo, pago.descuento, pago.tipoRecDes, pago.realizado, pago.total];
         await connection.query(consulta, parametros);
         
     } catch (error) {
         throw error; 
     }
 }
+
+async function InsertPagoPedidoDetalle(connection, pago):Promise<void>{
+    try {
+        const consulta = " INSERT INTO pedidos_pagos_detalle(idPedido, idTPago, monto) " +
+                         " VALUES(?, ?, ?) ";
+
+        const parametros = [pago.idPedido, pago.tipoPago.id, pago.monto];
+        await connection.query(consulta, parametros);
+        
+    } catch (error) {
+        throw error; 
+    }
+}
+
 async function InsertFacturaPedido(connection, factura):Promise<void>{
     try {
         const consulta = " INSERT INTO pedidos_factura(idPedido, cae, caeVto, ticket, tipoFactura, neto, iva, dni, tipoDni, ptoVenta) " +
@@ -473,6 +548,40 @@ async function ObtenerDetallePedido(connection, idPedido:number){
                 detalle.tipoProd = row['tipo'];
                 detalle.obs = row['obs'];
                 detalle.quitado = row['quitado'] == 1 ? true : false;
+                detalles.push(detalle)
+              }
+        }
+
+        return detalles;
+
+    } catch (error) {
+        throw error; 
+    }
+}
+
+async function ObtenerDetallePagos(connection, idPedido:number){
+    try {
+        const consulta = " SELECT pd.*, tp.id idTipoPago, tp.nombre, tp.icono, tp.color FROM pedidos_pagos_detalle pd " +
+                         " INNER JOIN tipos_pago tp ON tp.id = pd.idTPago " +
+                         " WHERE pd.idPedido = ?";
+
+        const [rows] = await connection.query(consulta, [idPedido]);
+
+        const detalles:DetallePago[] = [];
+
+        if (Array.isArray(rows)) {
+            for (let i = 0; i < rows.length; i++) { 
+                const row = rows[i];
+                
+                let detalle:DetallePago = new DetallePago();
+                detalle.idPedido = row['idPedido'];
+                detalle.tipoPago = new TipoPago({
+                    id: row['idTipoPago'],
+                    nombre: row['nombre'],
+                    icono: row['icono'],
+                    color: row['color'],
+                });
+                detalle.monto = parseFloat(row['monto']);
                 detalles.push(detalle)
               }
         }
@@ -558,7 +667,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         query = count +
                 " SELECT p.*, " +
                 " tp.nombre tipo, COALESCE(u.nombre, 'NO SELECCIONADO') responsable, COALESCE(m.numero, 'NO SELECCIONADA') codigoMesa,  COALESCE(m.numero, 0) numero, s.descripcion salon, " + //Varios
-                " tpag.id idTipoPago, tpag.nombre tipoPago, tpag.color tpColor, tpag.icono tpIcono, pp.realizado, pp.efectivo, pp.digital, pp.recargo, pp.descuento, pp.tipoRecDes, " + //Pago
+                " pp.realizado, pp.recargo, pp.descuento, pp.tipoRecDes, " + //Pago
                 " pfac.cae, pfac.caeVto, pfac.ticket, pfac.tipoFactura, pfac.neto, pfac.iva, pfac.dni, pfac.tipoDni, pfac.ptoVenta " + //Factura
                 " FROM pedidos p " +
                 " LEFT JOIN pedidos_tipo tp ON tp.id = p.idTipo " +
@@ -566,7 +675,6 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
                 " LEFT JOIN mesas m ON m.id = p.idMesa " +
                 " LEFT JOIN salones s ON s.id = m.idSalon " +
                 " LEFT JOIN pedidos_pago pp ON pp.idPedido = p.id " +
-                " LEFT JOIN tipos_pago tpag ON tpag.id = pp.idTPago " +
                 " LEFT JOIN pedidos_factura pfac ON pfac.idPedido = p.id " +
                 " WHERE fechaBaja IS NULL " +
                 filtro +
@@ -579,6 +687,19 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
     } catch (error) {
         throw error; 
     }
+}
+
+function getPagoVisual(detalles: DetallePago[]){
+    if (!detalles?.length) return null;
+    if (detalles.length === 1){
+        const tp = detalles[0].tipoPago;
+        return {
+            abreviatura: tp.nombre?.toUpperCase().substring(0,4),
+            nombre: tp.nombre,
+        };
+    }
+
+    return { abreviatura: 'COMB', nombre: 'COMBINADO' };
 }
 
 export const PedidosRepo = new PedidosRepository();

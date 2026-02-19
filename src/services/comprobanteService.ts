@@ -177,7 +177,7 @@ class ComprobanteService {
             ]);
         });
     
-        let totalProductoVariedad = pedido.detalles!.reduce((sum, item) => sum + (item.cantidad! * item.unitario!), 0);
+        let totalProductoVariedad = pedido.detalles!.filter(item => item.quitado == false).reduce((sum, item) => sum + (item.cantidad! * item.unitario!), 0);
         let total = totalProductoVariedad;
 
         comprobante.tipoRecDes = pedido.pago?.tipoRecDes ?? "Porcentaje";

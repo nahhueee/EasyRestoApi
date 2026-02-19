@@ -1,10 +1,7 @@
 import path from "path";
-import { ObjComanda } from "../models/ObjComanda";
-import { Pedido } from "../models/Pedido";
 import PdfPrinter from 'pdfmake';
 import { ObjResumen } from "../models/ObjResumen";
 import moment from "moment";
-import { TipoPago } from "../models/TipoPago";
 
 const fonts = {
   Roboto: {
@@ -31,28 +28,29 @@ class ResumenService {
             ]
         ];
 
-        const FormatearTipoPago = (tipoPago) => {
-            switch (tipoPago) {
-                case "EFECTIVO":
-                    return "EFE";
-                case "TRANSFERENCIA":
-                    return "TRA";
-                case "TARJETA":
-                    return "TAR";
-                case "QR":
-                    return "QR";
-                default:
-                    break;
-            }
-        };
+        if(resumen.mozo != "TODOS"){
+            resumen.detalles!.forEach(item => {
+                resumen.filasTabla?.push([
+                    item.idPedido,
+                    "$" + item.monto.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                    item.metodoPagoAbrev
+                ]);
+
+                // si es combinado agregar subfilas
+                if (item.metodoPago === 'COMBINADO' && item.pagos?.length) {
+
+                    item.pagos.forEach(p => {
+                        resumen.filasTabla?.push([
+                            "",   // idPedido vacío
+                            "$" + p.monto.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                            p.tipoPago?.nombre?.toUpperCase().substring(0,4)
+                        ]);
+                    });
+
+                }
+            });
+        }
         
-        resumen.detalles!.forEach(item => {
-            resumen.filasTabla?.push([
-                item.numero,
-                "$" + parseFloat(item.total).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
-                FormatearTipoPago(item.tipoPago)
-            ]);
-        });
 
         const docDefinition = resumen.papel === '58mm'
             ? this.ArmarResumen58(resumen)
@@ -161,15 +159,7 @@ class ResumenService {
                 ],
                 style: 'datos'
                 },
-                {
-                text: [
-                    { text: 'Resto Comb: '},
-                    { text: resumen.restoCombinado!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-
-
+                
                 {
                 text: [
                     { text: 'Cant. Pedidos: '},
@@ -328,13 +318,6 @@ class ResumenService {
                 text: [
                     { text: 'Tarjeta: '},
                     { text: resumen.tarjetas!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
-                ],
-                style: 'datos'
-                },
-                {
-                text: [
-                    { text: 'Resto Comb: '},
-                    { text: resumen.restoCombinado!.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }
                 ],
                 style: 'datos'
                 },

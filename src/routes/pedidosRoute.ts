@@ -36,6 +36,17 @@ router.get('/obtener-pedidos-mozo/:idMozo/:idCaja', async (req:Request, res:Resp
         res.status(500).send(msg);
     }
 });
+
+router.get('/obtener-pedidos-baja/:idCaja', async (req:Request, res:Response) => {
+    try{ 
+        res.json(await PedidosRepo.ObtenerPedidosEnBaja(req.params.idCaja));
+
+    } catch(error:any){
+        let msg = "Error al obtener el listado de pedidos en estado de baja.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
 //#endregion
 
 //#region ABM
@@ -95,9 +106,9 @@ router.put('/actualizar-impreso', async (req:Request, res:Response) => {
 });
 
 
-router.delete('/eliminar/:id', async (req:Request, res:Response) => {
+router.delete('/eliminar/:id/:obs', async (req:Request, res:Response) => {
     try{ 
-        res.json(await PedidosRepo.Eliminar(req.params.id));
+        res.json(await PedidosRepo.Eliminar(req.params.id, req.params.obs));
 
     } catch(error:any){
         let msg = "Error al intentar dar de baja el pedido.";
