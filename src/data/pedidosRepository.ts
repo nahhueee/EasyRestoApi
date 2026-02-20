@@ -91,7 +91,7 @@ class PedidosRepository{
                 " LEFT JOIN usuarios u ON u.id = p.idResponsable " +
                 " LEFT JOIN mesas m ON m.id = p.idMesa " +
                 " LEFT JOIN salones s ON s.id = m.idSalon " +
-                " WHERE p.idCaja = ? " +
+                " WHERE p.idCaja = ? AND p.fechaBaja IS NOT NULL " +
                 " ORDER BY p.id DESC ";
                
             const [rows] = await connection.query(query, [idCaja]);

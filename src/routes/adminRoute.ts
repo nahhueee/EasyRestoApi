@@ -14,10 +14,10 @@ router.get('/obtener-version', async (req:Request, res:Response) => {
             if(habilitado){
                 const respuesta = await AdminServ.ObtenerVersionApp();
 
-                if(config.produccion)
-                    respuesta.serverStatus = 'production';
-                else
-                    respuesta.serverStatus = 'test';
+                // if(config.produccion)
+                //     respuesta.serverStatus = 'production';
+                // else
+                //     respuesta.serverStatus = 'test';
 
                 return res.json(respuesta);
             }
