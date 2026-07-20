@@ -58,6 +58,7 @@ class PedidosRepository{
                     const row = rows[i];
                     let pedido:ObjResumenPagos = new ObjResumenPagos();
                     pedido.idPedido = row['id'];
+                    pedido.mesa = row['numero'];
                     pedido.monto = parseFloat(row['total']);
                     pedido.pagos = await ObtenerDetallePagos(connection, row['id']); 
 

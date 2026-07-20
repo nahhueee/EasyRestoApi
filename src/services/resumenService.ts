@@ -31,7 +31,7 @@ class ResumenService {
         if(resumen.mozo != "TODOS"){
             resumen.detalles!.forEach(item => {
                 resumen.filasTabla?.push([
-                    item.idPedido,
+                    item.mesa,
                     "$" + item.monto.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
                     item.metodoPagoAbrev
                 ]);

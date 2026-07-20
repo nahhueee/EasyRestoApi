@@ -28,6 +28,7 @@ export class ObjResumen {
 
 export class ObjResumenPagos {
     idPedido: number = 0;
+    mesa: number = 0;
     monto:number = 0;
     metodoPago:string = "";
     metodoPagoAbrev:string = "";
