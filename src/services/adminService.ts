@@ -1,85 +1,127 @@
 import config from '../conf/app.config';
 import FormData from 'form-data';
 import fs from 'fs';
+import path from 'path';
 import axios from 'axios';
-import { ParametrosRepo } from '../data/parametrosRepository';
+import { AppError } from '../log/AppError';
+import { CodigoError } from '../log/CodigosError';
+
+// Identidad de terminal: archivo terminal.json en la raíz del proceso, igual
+// que EasySalesApi (no en DB, no por MAC). Persiste por instalación.
+const ROOT_DIR = process.cwd();
+const TERMINAL_FILE = path.join(ROOT_DIR, 'terminal.json');
 
 class AdminService{
-    
-    async ObtenerVersionApp() {
+
+    async ObtenerVersionWeb() {
         try {
-            const version = (await axios.get(`${config.adminUrl}actualizaciones/ultima-version/${config.idApp}`)).data;
-            return version;
-        } catch (error) {
-            throw error;
-        }
-    }
+            const terminal = ObtenerTerminalLocal();
+            const response = await axios.get(
+                `${config.adminUrl}actualizaciones/ultima-version-backend/${config.idApp}/${terminal}`
+            );
 
-   async ObtenerHabilitacion(dni:string) {
-        try {
-            let mac = await GetMac();
-            {
-                if(mac){
-                    const resultado = (await axios.get(`${config.adminUrl}appscliente/habilitado/${dni}/${config.idApp}/${mac}`)).data
+            const data = response.data ?? ObtenerVersionVacia();
 
-                    //Informamos la versión actual
-                    if(resultado){
-                        const versionLocal = await ParametrosRepo.ObtenerParametros('version');
-                        await axios.put(`${config.adminUrl}appscliente/informar`, {dni, idApp:config.idApp, version:versionLocal})
-                    }
+            data.serverStatus = config.produccion
+                ? 'production'
+                : 'test';
 
-                    return resultado;
-                }
+            return data;
+
+        } catch (error: any) {
+
+            // Si no hay versión publicada
+            if (error.response?.status === 404) {
+                return {
+                    ...ObtenerVersionVacia(),
+                    serverStatus: config.produccion ? 'production' : 'test'
+                };
             }
-        } catch (error) {
-            throw error;
+
+            throw mapAxiosError(error, 'AdminService', 'ObtenerVersionWeb');
         }
     }
 
-    async ObtenerAppCliente(dni:string){
-        try {
-            let appCliente:any;
-            let mac = await GetMac();
-            if(mac){
-                //Obtiene el nro de terminal asociado a DNI y mac de esta app
-                let response = await axios.get(`${config.adminUrl}appscliente/obtener/${dni}/${config.idApp}/${mac}`);
-                if(response.data){
-                    appCliente = response.data;
-                }else{
-                    //si no hay nro terminal generamos una nueva y retornamos la appcliente
-                    appCliente = await this.GenerarAppCliente(dni, mac)
-                }
-            }
-            
-            return appCliente;
-        
-        } catch (error) {
-            throw error;
+    async ValidarIdentidad(dni: string) {
+        const cliente = await this.VerificarExistenciaCliente(dni);
+        if (!cliente) {
+            return { existe: false };
         }
+
+        const appCliente = await this.ObtenerAppCliente(dni);
+
+        if (!EsTerminalValida(appCliente?.terminal)) {
+            throw new AppError(
+                CodigoError.TERMINAL_NO_ENCONTRADA,
+                'Cliente sin terminal válida',
+                400,
+                { modulo: 'AdminService', metodo: 'ValidarIdentidad' }
+            );
+        }
+
+        // Aseguramos consistencia local
+        if (!ExisteTerminalValida()) {
+            GuardarTerminalLocal(appCliente.terminal);
+        }
+
+        return {
+            existe: true,
+            cliente: appCliente.cliente,
+            habilitado: appCliente.habilitado,
+            terminal: appCliente.terminal
+        };
     }
 
-    async GenerarAppCliente(dni:string, mac:string|any){
+    async ObtenerAppCliente(dni: string) {
         try {
-            const response = await axios.post(`${config.adminUrl}appscliente/generar`, {dni, idApp:config.idApp, mac});
-            if (response.data) 
+            const response = await axios.get(`${config.adminUrl}appscliente/obtener/${dni}/${config.idApp}`);
+
+            if (response.data) {
                 return response.data;
+            }
 
-            return null;
+            return await this.GenerarAppCliente(dni);
+
         } catch (error) {
-            throw error;
+            throw mapAxiosError(error, 'AdminService', 'ObtenerAppCliente');
         }
     }
 
-    async VerificarExistenciaCliente(DNI:string) {
+    async GenerarAppCliente(dni: string) {
+        try {
+            const response = await axios.post(`${config.adminUrl}appscliente/generar`, { dni, idApp: config.idApp });
+
+            if (!response.data) {
+                throw new AppError(
+                    CodigoError.APPCLIENTE_CREACION_ERROR,
+                    'No se pudo generar AppCliente', 500,
+                    { modulo: 'AdminService', metodo: 'GenerarAppCliente' }
+                );
+            }
+
+            GuardarTerminalLocal(response.data.terminal);
+
+            return response.data;
+
+        } catch (error) {
+            mapAxiosError(error, 'AdminService', 'GenerarAppCliente');
+        }
+    }
+
+    async ObtenerHabilitacion(terminal: string) {
+        try {
+            return (await axios.get(`${config.adminUrl}appscliente/habilitado/${terminal}/${config.idApp}`)).data;
+        } catch (error) {
+            mapAxiosError(error, 'AdminService', 'ObtenerHabilitacion');
+        }
+    }
+
+    async VerificarExistenciaCliente(DNI: string) {
         try {
             const response = await axios.get(`${config.adminUrl}clientes/obtener/${DNI}`);
-            if (response.data) { // Si existe el cliente con este DNI
-                return true;
-            }else{
-                return false;
-            }
+            return !!response.data;
         } catch (error) {
-            throw error;
+            mapAxiosError(error, 'AdminService', 'VerificarExistenciaCliente');
         }
     }
 
@@ -94,7 +136,7 @@ class AdminService{
             const response = await axios.post(`${config.adminUrl}backups/upload`, formData, {
                 headers,
             });
-            if (response.data) 
+            if (response.data)
                 return response.data;
 
             return null;
@@ -102,20 +144,69 @@ class AdminService{
             throw error;
         }
     }
+
 }
 
-async function GetMac() {
-    const macaddress = require('macaddress');
+function EsTerminalValida(terminal: any): boolean {
+    return typeof terminal === 'string' && terminal.trim().length > 0;
+}
 
-    return new Promise((resolve, reject) => {
-      macaddress.one((err, mac) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(mac);
+function ObtenerVersionVacia() {
+    return {
+        version: '0.0.0',
+        link: null,
+        resumen: null,
+        mejoras: null,
+        correcciones: null,
+        fecha_publicacion: null,
+        estado: 'NO_VERSION',
+        requiereNpmInstall: false,
+        tamanoBytes: null
+    };
+}
+
+function ExisteTerminalValida(): boolean {
+    try {
+        if (!fs.existsSync(TERMINAL_FILE)) return false;
+
+        const raw = fs.readFileSync(TERMINAL_FILE, 'utf-8');
+        if (!raw || raw.trim().length === 0) return false;
+
+        const data = JSON.parse(raw);
+        if (!data?.terminal) return false;
+
+        return true;
+
+    } catch {
+        return false;
+    }
+}
+
+function ObtenerTerminalLocal(): string {
+    if (!fs.existsSync(TERMINAL_FILE)) throw new Error("No se encuentra archivo terminal.json");
+
+    const data = JSON.parse(fs.readFileSync(TERMINAL_FILE, 'utf-8'));
+    return data.terminal;
+}
+
+function GuardarTerminalLocal(terminal: string) {
+    fs.writeFileSync(TERMINAL_FILE, JSON.stringify({
+        terminal,
+        fechaRegistro: new Date().toISOString()
+    }, null, 2));
+}
+
+function mapAxiosError(error: any, modulo: string, metodo: string) {
+    throw new AppError(
+        CodigoError.ADMIN_SERVER_ERROR,
+        'Error al comunicarse con AdminServer',
+        error.response?.status || 500,
+        {
+            modulo,
+            metodo,
+            cause: error.message
         }
-      });
-    });
-  }
-  
+    );
+}
+
 export const AdminServ = new AdminService();

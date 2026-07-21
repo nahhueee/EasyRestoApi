@@ -6,19 +6,54 @@ import { unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { spawn } from 'child_process';
 import { createWriteStream } from 'fs';
-import logger from '../log/loggerGeneral';
+import logger from '../log/logger';
+import { CodigoError } from '../log/CodigosError';
 
 const moment = require('moment');
 const cron = require('node-cron');
 const path = require('path');
 const fs = require('fs');
 
+const RUTA_ESTADO_BACKUP = path.join(process.cwd(), 'src', 'log', 'backup-estado.json');
+const RUTA_TERMINAL = path.join(process.cwd(), 'terminal.json');
+
+// Identidad de terminal: lectura local, igual que heartbeatService/errorBatchService.
+// Sin terminal.json (instalación aún no pasó por el componente de identidad), no hay
+// a quién consultarle habilitación: se omite el ciclo de backup.
+function obtenerTerminal(): string | null {
+    try {
+        if (!fs.existsSync(RUTA_TERMINAL)) return null;
+        const data = JSON.parse(fs.readFileSync(RUTA_TERMINAL, 'utf-8'));
+        return data.terminal ?? null;
+    } catch {
+        return null;
+    }
+}
+
+// Escribe el resultado del último backup del cron para que heartbeatService lo reporte.
+// Formato {fecha, ok} — igual al de EasySalesApi (heartbeatService lee estos nombres).
+function escribirEstadoBackup(ok: boolean) {
+    try {
+        fs.writeFileSync(RUTA_ESTADO_BACKUP, JSON.stringify({
+            fecha: new Date().toISOString(),
+            ok,
+        }, null, 2));
+    } catch (error: any) {
+        logger.error({
+            code: CodigoError.BACKUP_GENERACION_ERROR,
+            message: `No se pudo escribir backup-estado.json: ${error.message || error}`,
+            modulo: 'backupService',
+            stack: error?.stack,
+        });
+    }
+}
+
 let scheduledTask; // Variable para guardar la tarea programada
 class BackupsService{
 
-    
+
     async IniciarCron(){
-        try{ 
+        try{
             //Obtenemos los parametros necesarios
             //#region PARAMETROS
             const dniCliente = await ParametrosRepo.ObtenerParametros('dni');
@@ -27,9 +62,14 @@ class BackupsService{
 
             if(dniCliente!="")
                 this.EjecutarProcesoCron(dniCliente, expresion);
-                  
+
         } catch(error:any){
-            logger.error("Error al intentar iniciar los procesos de respaldo. " + error.message);
+            logger.error({
+                code: CodigoError.CRON_INIT_ERROR,
+                message: error.message || 'Error al intentar iniciar los procesos de respaldo',
+                modulo: 'backupService',
+                stack: error?.stack,
+            });
         }
     }
 
@@ -72,9 +112,15 @@ class BackupsService{
                 }
 
                 //Verificamos que el cliente este habilitado para sincronizar
-                const habilitado = await AdminServ.ObtenerHabilitacion(DNI)
+                const terminal = obtenerTerminal();
+                if (!terminal) {
+                    logger.info('Sin terminal registrada; se omite el ciclo de backup.');
+                    return;
+                }
+
+                const habilitado = await AdminServ.ObtenerHabilitacion(terminal)
                 if (!habilitado) {
-                    logger.info('Cliente inexistente o inhabilitado para generar backups.');
+                    logger.info('Terminal inexistente o inhabilitada para generar backups.');
                     return;
                 }
 
@@ -85,39 +131,72 @@ class BackupsService{
                     //Nombre del archivo
                     const fileName = `${DNI}_${moment().format('DD-MM-YYYY')}.sql`;
 
-                    //Path donde guardamos el backup    
+                    //Path donde guardamos el backup
                     const backupPath = path.join(__dirname, "../upload/", fileName);
                     await eliminarArchivo(backupPath); // Elimina el archivo
 
                     //Generamos el backup
-                    await GenerarBackup(backupPath)
+                    try {
+                        await GenerarBackup(backupPath);
+                    } catch (error: any) {
+                        // GenerarBackup ya logueó el detalle (stderr de mysqldump); acá solo cerramos el estado.
+                        escribirEstadoBackup(false);
+                        return;
+                    }
+
                     if(!existsSync(backupPath)){
-                        logger.error('Parece que ocurrio un error al intentar generar un backup.');
+                        logger.error({
+                            code: CodigoError.BACKUP_GENERACION_ERROR,
+                            message: 'Parece que ocurrió un error al intentar generar un backup (el archivo no existe)',
+                            modulo: 'backupService',
+                        });
+                        escribirEstadoBackup(false);
                         return;
                     }
 
                     //El servidor se encarga de verificar si el usuario tiene mas de 3 backups subidos
                     //Se borra el más antiguo, y se sube el nuevo
-                    const resultado = await AdminServ.SubirBackup(backupPath, DNI);
-                    if(resultado=="OK"){
-                        logger.info('Se subió correctamente el archivo al servidor.');
+                    try {
+                        const resultado = await AdminServ.SubirBackup(backupPath, DNI);
+                        if(resultado=="OK"){
+                            logger.info('Se subió correctamente el archivo al servidor.');
 
-                        //Agregamos el registro a la base local
-                        await BackupsRepo.Agregar(fileName);
-                        fs.unlinkSync(backupPath); // Elimina el archivo localmente
+                            //Agregamos el registro a la base local
+                            await BackupsRepo.Agregar(fileName);
+                            fs.unlinkSync(backupPath); // Elimina el archivo localmente
+                            escribirEstadoBackup(true);
+                        }
+                        else {
+                            logger.error({
+                                code: CodigoError.BACKUP_UPLOAD_ERROR,
+                                message: `Ocurrió un error al intentar subir el archivo al servidor. ${resultado}`,
+                                modulo: 'backupService',
+                            });
+                            escribirEstadoBackup(false);
+                        }
+                    } catch (error: any) {
+                        logger.error({
+                            code: CodigoError.BACKUP_UPLOAD_ERROR,
+                            message: error.message || 'Error al subir el backup a AdminServer',
+                            modulo: 'backupService',
+                            cause: error?.cause?.message,
+                            stack: error?.stack,
+                        });
+                        escribirEstadoBackup(false);
                     }
-                    else
-                        logger.error('Ocurrió un error al intentar subir el archivo al servidor. ' + resultado);
 
-                    
                     logger.info('Finalizó correctamente el proceso de respaldo.');
                 });
 
             }
         }
         catch (error: any) {
-            logger.error("Error dentro del proceso cron: " + error.message);
-            console.error(error);
+            logger.error({
+                code: CodigoError.CRON_INIT_ERROR,
+                message: error.message || 'Error dentro del proceso cron de respaldo',
+                modulo: 'backupService',
+                stack: error?.stack,
+            });
         }
     }
 }
@@ -126,10 +205,15 @@ async function eliminarArchivo(filePath: string) {
     if (existsSync(filePath)) { // Verifica si el archivo existe
         try {
             await unlink(filePath); // Elimina el archivo
-        } catch (error) {
-            logger.error(`Error al intentar eliminar el archivo: ${error}`);
+        } catch (error: any) {
+            logger.error({
+                code: CodigoError.BACKUP_GENERACION_ERROR,
+                message: `Error al intentar eliminar el archivo previo: ${error.message || error}`,
+                modulo: 'backupService',
+                stack: error?.stack,
+            });
         }
-    } 
+    }
 }
 
 async function GenerarBackup(backupPath: string) {
@@ -145,25 +229,38 @@ async function GenerarBackup(backupPath: string) {
         const dumpProcess = spawn('mysqldump', args);
         const output = createWriteStream(backupPath);
 
+        // Proceso externo: acumulamos stderr para usarlo como mensaje cuando
+        // el error del proceso venga vacío (patrón estandar_errores.md §5.3 de EasySales).
+        let stderrAcumulado = '';
+
         dumpProcess.stdout.pipe(output);
 
         dumpProcess.stderr.on('data', (data) => {
-            logger.error(`Error en mysqldump: ${data}`);
+            stderrAcumulado += data.toString();
         });
 
         dumpProcess.on('close', (code) => {
             if (code === 0) {
-                logger.info(`Backup generado correctamente`);
+                logger.info('Backup generado correctamente');
                 resolve(true);
             } else {
-                logger.error(`mysqldump finalizó con código: ${code}`);
-                reject(false);
+                logger.error({
+                    code: CodigoError.BACKUP_GENERACION_ERROR,
+                    message: stderrAcumulado || `mysqldump finalizó con código: ${code}`,
+                    modulo: 'backupService',
+                });
+                reject(new Error(stderrAcumulado || `mysqldump finalizó con código: ${code}`));
             }
         });
 
-        dumpProcess.on('error', (err) => {
-            logger.error(`Error al lanzar mysqldump: ${err}`);
-            reject(false);
+        dumpProcess.on('error', (err: any) => {
+            logger.error({
+                code: CodigoError.BACKUP_GENERACION_ERROR,
+                message: err.message || stderrAcumulado || 'Error al lanzar mysqldump',
+                modulo: 'backupService',
+                stack: err?.stack,
+            });
+            reject(err);
         });
     });
 }

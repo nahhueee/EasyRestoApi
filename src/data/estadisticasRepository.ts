@@ -11,17 +11,26 @@ class EstadisticasRepository{
         try {
             const { fechaDesde, fechaHasta } = obtenerRangosFecha(filtros);
 
+            // Calco de EasySalesApi: además de fechaBaja del pedido, se excluyen los
+            // pedidos cuya caja está dada de baja. LEFT JOIN (no INNER como en
+            // EasySales) porque acá idCaja puede ser 0 (pedido sin caja, modo
+            // "pedidos" sin cajas) — con INNER esos pedidos desaparecerían de las
+            // estadísticas.
             //#region CONSULTAS
-            const consulta1 = " SELECT COUNT(*) AS cantidad_pedidos,  SUM(total) AS total_pedidos FROM pedidos " +
-                              " WHERE (fecha BETWEEN ? AND ?) AND fechaBaja IS NULL AND finalizado = 1 ";
-            
+            const consulta1 = " SELECT COUNT(*) AS cantidad_pedidos,  SUM(p.total) AS total_pedidos FROM pedidos p " +
+                              " LEFT JOIN cajas c ON c.id = p.idCaja " +
+                              " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND p.finalizado = 1 " +
+                              " AND (c.id IS NULL OR c.fechaBaja IS NULL) ";
+
             const [consultaTotalesPedido] = await connection.query(consulta1, [fechaDesde, fechaHasta]);
 
             const consulta2 = " SELECT COUNT(*) AS cantidad_facturas, SUM(p.total) AS total_facturas " +
                               " FROM pedidos_factura pf " +
                               " INNER JOIN pedidos p ON p.id = pf.idPedido " +
-                              " WHERE (p.fecha BETWEEN ? AND ?) AND fechaBaja IS NULL AND finalizado = 1";
-            
+                              " LEFT JOIN cajas c ON c.id = p.idCaja " +
+                              " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND p.finalizado = 1 " +
+                              " AND (c.id IS NULL OR c.fechaBaja IS NULL) ";
+
             const [consultaTotalesFactura] = await connection.query(consulta2, [fechaDesde, fechaHasta]);
             //#endregion
 
@@ -61,7 +70,9 @@ class EstadisticasRepository{
                                      " FROM pedidos_pagos_detalle ppd " +
                                      " INNER JOIN pedidos p ON p.id = ppd.idPedido " +
                                      " INNER JOIN pedidos_pago ppag ON p.id = ppag.idPedido " +
+                                     " LEFT JOIN cajas c ON c.id = p.idCaja " +
                                      " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1 " +
+                                     " AND (c.id IS NULL OR c.fechaBaja IS NULL) " +
                                      adicional;
             const [resultTotales] = await connection.query(consultaTotales, [fechaDesde, fechaHasta]);
 
@@ -75,17 +86,19 @@ class EstadisticasRepository{
                                      " SELECT  p.id, " +
                                      " CASE " +
                                      "  WHEN COUNT(DISTINCT ppd.idTPago) > 1 THEN 'COMBINADO' " +
-                                     " WHEN MIN(ppd.idTPago) = 1 THEN 'EFECTIVO' " + 
-                                     " WHEN MIN(ppd.idTPago) = 2 THEN 'TARJETA' " + 
-                                     " WHEN MIN(ppd.idTPago) = 3 THEN 'TRANSFERENCIA' " + 
-                                     " WHEN MIN(ppd.idTPago) = 5 THEN 'QR' " + 
-                                     " END AS categoria " + 
-                                     " FROM pedidos p " + 
-                                     " INNER JOIN pedidos_pagos_detalle ppd ON p.id = ppd.idPedido " + 
-                                     " INNER JOIN pedidos_pago ppag ON p.id = ppag.idPedido " + 
-                                     " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1" + 
+                                     " WHEN MIN(ppd.idTPago) = 1 THEN 'EFECTIVO' " +
+                                     " WHEN MIN(ppd.idTPago) = 2 THEN 'TARJETA' " +
+                                     " WHEN MIN(ppd.idTPago) = 3 THEN 'TRANSFERENCIA' " +
+                                     " WHEN MIN(ppd.idTPago) = 5 THEN 'QR' " +
+                                     " END AS categoria " +
+                                     " FROM pedidos p " +
+                                     " INNER JOIN pedidos_pagos_detalle ppd ON p.id = ppd.idPedido " +
+                                     " INNER JOIN pedidos_pago ppag ON p.id = ppag.idPedido " +
+                                     " LEFT JOIN cajas c ON c.id = p.idCaja " +
+                                     " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1" +
+                                     " AND (c.id IS NULL OR c.fechaBaja IS NULL) " +
                                      adicional +
-                                     " GROUP BY p.id " + 
+                                     " GROUP BY p.id " +
                                      " ) t;";
 
 
@@ -120,11 +133,13 @@ class EstadisticasRepository{
 
             //#region CONSULTAS
             const consultaCantidad = " SELECT  " +
-                                     " SUM(CASE WHEN idTipo = 1 THEN 1 ELSE 0 END) AS cant_restaurant, " +
-                                     " SUM(CASE WHEN idTipo = 2 THEN 1 ELSE 0 END) AS cant_retira, " +
-                                     " SUM(CASE WHEN idTipo = 3 THEN 1 ELSE 0 END) AS cant_delivery " +
-                                     " FROM pedidos " +
-                                     " WHERE (fecha BETWEEN ? AND ?) AND fechaBaja IS NULL AND finalizado = 1 ";
+                                     " SUM(CASE WHEN p.idTipo = 1 THEN 1 ELSE 0 END) AS cant_restaurant, " +
+                                     " SUM(CASE WHEN p.idTipo = 2 THEN 1 ELSE 0 END) AS cant_retira, " +
+                                     " SUM(CASE WHEN p.idTipo = 3 THEN 1 ELSE 0 END) AS cant_delivery " +
+                                     " FROM pedidos p " +
+                                     " LEFT JOIN cajas c ON c.id = p.idCaja " +
+                                     " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND p.finalizado = 1 " +
+                                     " AND (c.id IS NULL OR c.fechaBaja IS NULL) ";
 
             const [resultCantidad] = await connection.query(consultaCantidad, [fechaDesde, fechaHasta]);
             //#endregion
@@ -152,7 +167,9 @@ class EstadisticasRepository{
                              " FROM pedidos_detalle pd" +
                              " INNER JOIN productos pro ON pro.id = pd.idProducto" +
                              " INNER JOIN pedidos p on pd.idPedido = p.id " +
-                             " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND p.finalizado = 1" + 
+                             " LEFT JOIN cajas c ON c.id = p.idCaja " +
+                             " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND p.finalizado = 1" +
+                             " AND (c.id IS NULL OR c.fechaBaja IS NULL)" +
                              " GROUP BY pd.idProducto" +
                              " ORDER BY EjeY DESC " +
                              " LIMIT 5;";
@@ -192,14 +209,16 @@ class EstadisticasRepository{
             }
 
             const consulta = `
-                SELECT 
+                SELECT
                 ${groupBy} AS EjeX,
                 SUM((pd.unitario - pd.costo) * pd.cantidad) AS EjeY
                 FROM pedidos_detalle pd
                 INNER JOIN pedidos p ON pd.idPedido = p.id
+                LEFT JOIN cajas c ON c.id = p.idCaja
                 WHERE p.fecha BETWEEN ? AND ?
                 AND p.fechaBaja IS NULL
                 AND p.finalizado = 1
+                AND (c.id IS NULL OR c.fechaBaja IS NULL)
                 GROUP BY EjeX
                 ORDER BY ${orderBy} ASC
                 LIMIT ${limit};

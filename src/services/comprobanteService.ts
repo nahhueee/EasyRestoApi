@@ -131,6 +131,9 @@ class ComprobanteService {
         comprobante.horaPedido = pedido.hora;
         comprobante.mesa = pedido.mesa?.codigo!;
         comprobante.responsable = pedido.responsable?.nombre!;
+        comprobante.cliente = pedido.cliente!;
+        comprobante.tipoPedidoId = pedido.tipo?.id;
+        comprobante.tipoPedido = pedido.tipo?.nombre;
         if(comprobante.mesa == "NO SELECCIONADA") comprobante.mesa = "";
     
         const fecha = new Date(pedido.fecha!);
@@ -198,9 +201,64 @@ class ComprobanteService {
         comprobante.totalProdVar = totalProductoVariedad;
         comprobante.descuento = pedido.pago!.descuento != null ? pedido.pago!.descuento : 0;
         comprobante.recargo = pedido.pago!.recargo != null ? pedido.pago!.recargo : 0;
+        comprobante.obs = pedido.pago?.obs ?? '';
         comprobante.totalFinal = total;
 
         return comprobante;
+    }
+
+    /**
+     * Bloque de totales, reutilizado por los 6 layouts (interno/factura x 58/80/A4).
+     * Antes cada layout imprimía siempre las 4 líneas fijas (Productos/Descuento/Recargo/Total),
+     * incluso con descuento y recargo en 0 — poco profesional. Ahora: Subtotal + ajuste (con
+     * signo, color y %) solo si hay un ajuste realmente aplicado, después el Total, y si hay
+     * una observación cargada junto al recargo/descuento (ver RecargoDescuentoComponent) se
+     * muestra debajo en chico/itálica, sutil pero legible.
+     */
+    private ArmarBloqueTotales(comprobante: ObjComprobante, fontNormal: number, fontTotal: number) {
+        const filas: any[] = [];
+        const descuento = comprobante.descuento ?? 0;
+        const recargo = comprobante.recargo ?? 0;
+        const tieneAjuste = descuento != 0 || recargo != 0;
+
+        if (tieneAjuste) {
+            filas.push({
+                text: `Subtotal: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                fontSize: fontNormal, alignment: 'right', margin: [3, 0, 3, 0]
+            });
+
+            const esDescuento = descuento != 0;
+            const valor = esDescuento ? descuento : recargo;
+            const signo = esDescuento ? '-' : '+';
+            const label = esDescuento ? 'Descuento' : 'Recargo';
+            const color = esDescuento ? 'green' : 'red';
+            const valorTexto = comprobante.tipoRecDes === 'Porcentaje'
+                ? `${valor}%`
+                : `$${valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+            filas.push({
+                text: `${label}: ${signo}${valorTexto}`,
+                fontSize: fontNormal, alignment: 'right', color, margin: [3, 0, 3, 0]
+            });
+        }
+
+        filas.push({
+            text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            fontSize: fontTotal, bold: true, alignment: 'right', margin: [3, 5, 3, 5]
+        });
+
+        if (comprobante.obs && comprobante.obs.trim() !== '') {
+            // La térmica dithea a 1 bit: un gris claro (#777) directamente no imprime.
+            // "Sutil" acá se logra con itálica + tamaño un punto menor, no con color claro.
+            const etiquetaMotivo = descuento != 0 ? 'Motivo desc.' : 'Motivo rec.';
+            filas.push({
+                text: `${etiquetaMotivo}: ${comprobante.obs}`,
+                fontSize: Math.max(fontNormal - 1, 6), italics: true, color: 'black',
+                alignment: 'right', margin: [3, 0, 3, 3]
+            });
+        }
+
+        return filas;
     }
 
     //#region COMPROBANTE INTERNO
@@ -213,13 +271,28 @@ class ComprobanteService {
         pageMargins: [comprobante.margenIzq, 0, comprobante.margenDer, 0],
         content: [
           { text: comprobante.nombreLocal?.toUpperCase(), style: 'titulo', alignment: 'center' },
-          { text: comprobante.desLocal, style: 'subtitulo', alignment: 'center' },
-          { text: comprobante.dirLocal, style: 'direccion', alignment: 'center' },
-          
+
+          ...(comprobante.desLocal && comprobante.desLocal.trim() !== '' ? [
+            { text: comprobante.desLocal, style: 'subtitulo', alignment: 'center' }
+          ] : []),
+
+          ...(comprobante.dirLocal && comprobante.dirLocal.trim() !== '' ? [
+            { text: comprobante.dirLocal, style: 'direccion', alignment: 'center' }
+          ] : []),
+
           { text: comprobante.fechaPedido + " " +  comprobante.horaPedido, alignment: 'center', style:'fecha' },
-          { text: "Mesa: " +  comprobante.mesa, alignment: 'left', style:'mesaMozo' },
-          { text: "Mozo: " +  comprobante.responsable, alignment: 'left', style:'mesaMozo' },
-          
+
+          ...(comprobante.tipoPedidoId !== 1 ? [
+            { text: (comprobante.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'center' }
+          ] : []),
+
+          ...(comprobante.tipoPedidoId === 1 ? [
+            { text: "Mesa: " +  comprobante.mesa, alignment: 'left', style:'mesaMozo' },
+            { text: "Mozo: " +  comprobante.responsable, alignment: 'left', style:'mesaMozo' }
+          ] : [
+            { text: "Cliente: " + comprobante.cliente, alignment: 'left', style: 'mesaMozo' }
+          ]),
+
           {
             table: {
               widths: ['auto', '*', 'auto', 'auto'],
@@ -244,11 +317,8 @@ class ComprobanteService {
             },
             style: 'tableStyle' // Aplicar el estilo a la tabla
           },
-          
-          { text: `Productos: ${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' }
+
+          ...this.ArmarBloqueTotales(comprobante, 8, 10)
         ],
         styles: {
           titulo: {
@@ -268,6 +338,12 @@ class ComprobanteService {
           fecha: {
             fontSize: 8,
             margin: [0, 3, 0, 3]
+          },
+          tipoPedido: {
+            fontSize: 10,
+            bold: true,
+            decoration: 'underline',
+            margin: [0, 0, 0, 3]
           },
           mesaMozo: {
             fontSize: 8,
@@ -300,12 +376,28 @@ class ComprobanteService {
         pageMargins: [comprobante.margenIzq, 0, comprobante.margenDer, 0],
         content: [
           { text: comprobante.nombreLocal?.toUpperCase(), style: 'titulo', alignment: 'center' },
-          { text: comprobante.desLocal, style: 'subtitulo', alignment: 'center' },
-          { text: comprobante.dirLocal, style: 'direccion', alignment: 'center' },          
+
+          ...(comprobante.desLocal && comprobante.desLocal.trim() !== '' ? [
+            { text: comprobante.desLocal, style: 'subtitulo', alignment: 'center' }
+          ] : []),
+
+          ...(comprobante.dirLocal && comprobante.dirLocal.trim() !== '' ? [
+            { text: comprobante.dirLocal, style: 'direccion', alignment: 'center' }
+          ] : []),
+
           { text: comprobante.fechaPedido + " " +  comprobante.horaPedido, alignment: 'center', style:'fecha' },
-          { text: "Mesa: " +  comprobante.mesa, alignment: 'left', style:'mesaMozo' },
-          { text: "Mozo: " +  comprobante.responsable, alignment: 'left', style:'mesaMozo' },
-          
+
+          ...(comprobante.tipoPedidoId !== 1 ? [
+            { text: (comprobante.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'center' }
+          ] : []),
+
+          ...(comprobante.tipoPedidoId === 1 ? [
+            { text: "Mesa: " +  comprobante.mesa, alignment: 'left', style:'mesaMozo' },
+            { text: "Mozo: " +  comprobante.responsable, alignment: 'left', style:'mesaMozo' }
+          ] : [
+            { text: "Cliente: " + comprobante.cliente, alignment: 'left', style: 'mesaMozo' }
+          ]),
+
           {
             table: {
               widths: ['auto', '*', 'auto', 'auto'],
@@ -330,11 +422,8 @@ class ComprobanteService {
             },
             style: 'tableStyle' // Aplicar el estilo a la tabla
           },
-          
-          { text: `Productos: ${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' }
+
+          ...this.ArmarBloqueTotales(comprobante, 11, 13)
         ],
         styles: {
           titulo: {
@@ -354,6 +443,12 @@ class ComprobanteService {
           fecha: {
             fontSize: 11,
             margin: [0, 3, 0, 3]
+          },
+          tipoPedido: {
+            fontSize: 12,
+            bold: true,
+            decoration: 'underline',
+            margin: [0, 0, 0, 4]
           },
           mesaMozo: {
             fontSize: 11,
@@ -376,7 +471,7 @@ class ComprobanteService {
         }
       };
     }
-  
+
     private ArmarInternoA4(comprobante:ObjComprobante){
       return {
         pageSize: 'A4',
@@ -388,7 +483,22 @@ class ComprobanteService {
               { text: comprobante.nombreLocal?.toUpperCase(), style: 'titulo', alignment: 'left' },
               { text: comprobante.fechaPedido + " " + comprobante.horaPedido, style: 'fecha', alignment: 'right' }
             ]
-          },        
+          },
+
+          ...(comprobante.tipoPedidoId !== 1 ? [
+            { text: (comprobante.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'left' }
+          ] : []),
+
+          ...(comprobante.tipoPedidoId !== 1 ? [
+            {
+              text: [
+                { text: 'Cliente: ', bold: true },
+                { text: comprobante.cliente }
+              ],
+              style: 'recargaDescuento'
+            }
+          ] : []),
+
           {
             table: {
               widths: ['auto', '*', 'auto', 'auto'],
@@ -414,10 +524,7 @@ class ComprobanteService {
             style: 'tableStyle' // Aplicar el estilo a la tabla
           },
           
-          { text: `Productos: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' }
+          ...this.ArmarBloqueTotales(comprobante, 11, 12)
         ],
         styles: {
           titulo: {
@@ -427,7 +534,13 @@ class ComprobanteService {
             margin: [0, 0, 0, 5]
           },
           fecha: {
-            fontSize: 12, 
+            fontSize: 12,
+            margin: [0, 0, 0, 5]
+          },
+          tipoPedido: {
+            fontSize: 12,
+            bold: true,
+            decoration: 'underline',
             margin: [0, 0, 0, 5]
           },
           total: {
@@ -435,7 +548,7 @@ class ComprobanteService {
             bold: true,
             margin: [3, 12, 3, 5]
           },
-         
+
           recargaDescuento: {
             fontSize: 11,
             bold: false,
@@ -497,11 +610,8 @@ class ComprobanteService {
             style: 'tableStyle' // Aplicar el estilo a la tabla
           },
           
-          { text: `Productos: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' },
-  
+          ...this.ArmarBloqueTotales(comprobante, 8, 10),
+
          ...((datosFactura.nroTipoFactura != 11) ? [
             { text: 'IVA 21% Incluido', fontSize: 6, margin: [0, 5, 0, 3], alignment: 'center' },
             { text: `NETO: $${datosFactura.neto?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, alignment: 'center', fontSize: 8 },
@@ -637,11 +747,8 @@ class ComprobanteService {
             style: 'tableStyle' // Aplicar el estilo a la tabla
           },
           
-          { text: `Productos: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' },
-  
+          ...this.ArmarBloqueTotales(comprobante, 11, 13),
+
          ...((datosFactura.nroTipoFactura != 11) ? [
             { text: 'IVA 21% Incluido', fontSize: 10, margin: [0, 5, 0, 3], alignment: 'center' },
             { text: `NETO: $${datosFactura.neto?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, alignment: 'center', fontSize: 11 },
@@ -886,10 +993,7 @@ class ComprobanteService {
           },
           
           //Detalle totales tabla productos
-          { text: `Productos: $${comprobante.totalProdVar?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Descuento: ${comprobante.descuento}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `${comprobante.tipoRecDes} de Recargo: ${comprobante.recargo}`, style: 'recargaDescuento', alignment: 'right' },
-          { text: `Total: $${comprobante.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, style: 'total', alignment: 'right' },
+          ...this.ArmarBloqueTotales(comprobante, 11, 12),
 
           //Pie de página
           {

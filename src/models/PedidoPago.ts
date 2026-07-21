@@ -5,15 +5,17 @@ export class PedidoPago{
     recargo? : number;
     descuento? : number;
     tipoRecDes? : string;
+    obs? : string;
     realizado? : boolean;
     monto? : number;
-  
+
     constructor(data?: any) {
       if (data) {
         this.idPedido = data.idPedido;
         this.recargo = data.recargo;
         this.descuento = data.descuento;
         this.tipoRecDes = data.tipoRecDes;
+        this.obs = data.obs;
         this.realizado = data.realizado;
         this.monto = data.monto;
       }

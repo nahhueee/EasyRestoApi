@@ -224,6 +224,7 @@ CREATE TABLE pedidos_pago (
     descuento DECIMAL(10,2),
     recargo DECIMAL(10,2),
     tipoRecDes VARCHAR(10) DEFAULT 'Porcentaje',
+    obs VARCHAR(150),
     realizado BOOLEAN
 )ENGINE=InnoDB;
 

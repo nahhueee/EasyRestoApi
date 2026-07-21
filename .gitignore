@@ -3,9 +3,17 @@
 /src/log/general.json
 /src/log/update.json
 /src/log/backup.json
+/src/log/backup-estado.json
+/src/log/errores-pendientes.json
+/src/log/error.log
+/src/log/app.log
 /src/upload/*
 !/src/upload/
 /update
 /ssl/server/*
 /www/*
+
+# Fase 1 - AdminServer: identidad de terminal + estado del updater (runtime, por instalación)
+/terminal.json
+/updater/
 

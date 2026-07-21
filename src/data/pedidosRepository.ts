@@ -155,9 +155,10 @@ class PedidosRepository{
 
         if(!bajas){
             pedido.pago = new PedidoPago({
-                recargo: parseFloat(row['recargo']), 
-                descuento: parseFloat(row['descuento']), 
+                recargo: parseFloat(row['recargo']),
+                descuento: parseFloat(row['descuento']),
                 tipoRecDes: row['tipoRecDes'],
+                obs: row['pagoObs'],
                 realizado: row['realizado'],
             });
 
@@ -461,10 +462,10 @@ async function InsertPedido(connection, pedido):Promise<void>{
 }
 async function InsertPagoPedido(connection, pago):Promise<void>{
     try {
-        const consulta = " INSERT INTO pedidos_pago(idPedido, recargo, descuento, tipoRecDes, realizado, monto) " +
-                         " VALUES(?, ?, ?, ?, ?, ?) ";
+        const consulta = " INSERT INTO pedidos_pago(idPedido, recargo, descuento, tipoRecDes, obs, realizado, monto) " +
+                         " VALUES(?, ?, ?, ?, ?, ?, ?) ";
 
-        const parametros = [pago.idPedido, pago.recargo, pago.descuento, pago.tipoRecDes, pago.realizado, pago.total];
+        const parametros = [pago.idPedido, pago.recargo, pago.descuento, pago.tipoRecDes, pago.obs, pago.realizado, pago.total];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -668,7 +669,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         query = count +
                 " SELECT p.*, " +
                 " tp.nombre tipo, COALESCE(u.nombre, 'NO SELECCIONADO') responsable, COALESCE(m.numero, 'NO SELECCIONADA') codigoMesa,  COALESCE(m.numero, 0) numero, s.descripcion salon, " + //Varios
-                " pp.realizado, pp.recargo, pp.descuento, pp.tipoRecDes, " + //Pago
+                " pp.realizado, pp.recargo, pp.descuento, pp.tipoRecDes, pp.obs pagoObs, " + //Pago
                 " pfac.cae, pfac.caeVto, pfac.ticket, pfac.tipoFactura, pfac.neto, pfac.iva, pfac.dni, pfac.tipoDni, pfac.ptoVenta " + //Factura
                 " FROM pedidos p " +
                 " LEFT JOIN pedidos_tipo tp ON tp.id = p.idTipo " +

@@ -4,6 +4,8 @@ export class ObjComanda {
     mesa?:string;
     mozo?:string;
     cliente?:string;
+    tipoPedidoId?:number;
+    tipoPedido?:string;
     fechaPedido?:string;
     horaPedido?:string;
     observacion?:string;
@@ -19,6 +21,8 @@ export class ObjComanda {
           this.mesa = data.mesa;
           this.mozo = data.mozo;
           this.cliente = data.cliente;
+          this.tipoPedidoId = data.tipoPedidoId;
+          this.tipoPedido = data.tipoPedido;
           this.fechaPedido = data.fechaPedido;
           this.horaPedido = data.horaPedido;
           this.observacion = data.observacion;

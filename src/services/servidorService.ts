@@ -1,6 +1,5 @@
 import dgram from 'dgram';
 import os from 'os';
-import {ParametrosRepo} from '../data/parametrosRepository';
 import {AdminServ} from '../services/adminService';
 import logger from '../log/loggerGeneral';
 import config from '../conf/app.config';
@@ -27,19 +26,21 @@ class ServidorService {
   }
 
   async IniciarModoServidor(){
-      try{ 
-          //Obtenemos los parametros necesarios
-          const dniCliente = await ParametrosRepo.ObtenerParametros('dni');
+      try{
+          //Identidad de terminal: archivo local (igual que heartbeatService/errorBatchService)
+          const terminalFile = path.join(process.cwd(), 'terminal.json');
+          const terminal = fs.existsSync(terminalFile)
+              ? (JSON.parse(await fs.readFile(terminalFile, 'utf-8')).terminal ?? null)
+              : null;
 
+          if(terminal){
 
-          if(dniCliente!=""){
-            
             //Verificamos que este conectado a internet
             // const conectado = await isOnline();
             // if(!conectado) return;
-            
-            //Verificamos que el cliente este habilitado para usar este modo
-            const habilitado = await AdminServ.ObtenerHabilitacion(dniCliente)
+
+            //Verificamos que la terminal este habilitada para usar este modo
+            const habilitado = await AdminServ.ObtenerHabilitacion(terminal)
             if (!habilitado) {
                 this.StopUDPDiscovery(false);
 

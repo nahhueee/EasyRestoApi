@@ -70,6 +70,12 @@ if (!config.web) BackupsServ.IniciarCron();
 import {ServidorServ} from './services/servidorService';
 if (!config.web) ServidorServ.IniciarModoServidor();
 
+// AdminServer - Fase 1: heartbeat + reporte de errores en batch
+import {HeartbeatServ} from './services/heartbeatService';
+import {ErrorBatchServ} from './services/errorBatchService';
+ErrorBatchServ.IniciarCron();
+if (!config.web) HeartbeatServ.IniciarCron();
+
 //GUARDAMOS LA IP PARA QUE LA PUEDA USAR IONIC
 ServidorServ.GuardarInfoServidor(config.port);
 
@@ -77,6 +83,40 @@ ServidorServ.GuardarInfoServidor(config.port);
 app.get('/easyresto', (req, res) => {
     res.status(200).send('Servidor de EasyResto funcionando en este puerto.');
 });
+
+// Fase 1 AdminServer - Trabajo 5: endpoints de diagnóstico que consume el
+// frontend Tauri directamente (no pasan por adminRoute.ts). Calco de EasySalesApi.
+import { ParametrosRepo } from './data/parametrosRepository';
+const fsSync = require('fs');
+
+app.get('/easyresto/version', async (req, res) => {
+    return res.json({
+        version: await ParametrosRepo.ObtenerParametros('version')
+    });
+});
+
+// Expone el terminal_id al frontend para el gate de canary y telemetría.
+// Devuelve { terminal } si terminal.json existe y está bien formado, o 404 si no hay terminal.
+app.get('/easyresto/terminal', (req, res) => {
+    const TERMINAL_FILE = path.join(process.cwd(), 'terminal.json');
+    if (!fsSync.existsSync(TERMINAL_FILE)) {
+        return res.status(404).json({ terminal: null });
+    }
+    try {
+        const data = JSON.parse(fsSync.readFileSync(TERMINAL_FILE, 'utf-8'));
+        if (!data.terminal) return res.status(404).json({ terminal: null });
+        return res.json({ terminal: data.terminal });
+    } catch {
+        return res.status(404).json({ terminal: null });
+    }
+});
+
+// NOTA: EasySalesApi también expone /pendiente y /forzar-descarga, respaldados
+// por un pipeline real de descarga/aplicación/rollback de updates
+// (updater/config/{Checkear,Descargar,Aplicar}Actualizacion.ts + EjecutarRollback.ts).
+// Ese pipeline NO existe en EasyRestoApi — no se replica acá sin confirmar
+// alcance y modelo de proceso (EasyResto no corre bajo PM2). Ver resumen de
+// la sesión para la pregunta pendiente a Nahu.
 
 // ARCHIVOS DE IONIC 
 app.use(express.static(path.join(__dirname, "../www")));
@@ -97,6 +137,12 @@ app.get('*', function(req, res) {
 
   res.sendFile(path.join(__dirname, "../www/index.html"));
 });
+
+// Manejo de errores HTTP (Fase 1 AdminServer) - debe ir al final, después de
+// todas las rutas. Solo las routes migradas usan next(error)/AppError; el
+// resto del código legacy sigue respondiendo por su cuenta (sin barrido masivo).
+import { errorMiddleware } from './middlewares/errorMiddleware';
+app.use(errorMiddleware);
 
 // START SERVER
 let host = config.esServer ? "0.0.0.0" : "127.0.0.1";

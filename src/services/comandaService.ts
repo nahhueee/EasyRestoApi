@@ -48,7 +48,11 @@ class ComandaService {
 
         comanda.nroPedido = pedido.id!;
         comanda.mesa = pedido.mesa?.codigo!;
+        if(comanda.mesa == "NO SELECCIONADA") comanda.mesa = "";
         comanda.mozo = pedido.responsable?.nombre!;
+        comanda.cliente = pedido.cliente!;
+        comanda.tipoPedidoId = pedido.tipo?.id;
+        comanda.tipoPedido = pedido.tipo?.nombre;
         comanda.observacion = pedido.obs!;
         comanda.horaPedido = pedido.hora;
         const fecha = new Date(pedido.fecha!);
@@ -109,6 +113,10 @@ class ComandaService {
         content: [
             { text: comanda.fechaPedido + " " +  comanda.horaPedido, alignment:"center", style:'fecha' },
 
+            ...(comanda.tipoPedidoId !== 1 ? [
+                { text: (comanda.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'center' }
+            ] : []),
+
             {
             text: [
                 { text: 'Nro: ', bold: true },
@@ -116,20 +124,31 @@ class ComandaService {
             ],
             style: 'datos'
             },
-            {
-            text: [
-                { text: 'Mesa: ', bold: true },
-                { text: comanda.mesa }
-            ],
-            style: 'datos'
-            },
-            {
-            text: [
-                { text: 'Mozo: ', bold: true },
-                { text: comanda.mozo }
-            ],
-            style: 'datos'
-            },
+
+            ...(comanda.tipoPedidoId === 1 ? [
+                {
+                    text: [
+                        { text: 'Mesa: ', bold: true },
+                        { text: comanda.mesa }
+                    ],
+                    style: 'datos'
+                },
+                {
+                    text: [
+                        { text: 'Mozo: ', bold: true },
+                        { text: comanda.mozo }
+                    ],
+                    style: 'datos'
+                }
+            ] : [
+                {
+                    text: [
+                        { text: 'Cliente: ', bold: true },
+                        { text: comanda.cliente }
+                    ],
+                    style: 'datos'
+                }
+            ]),
 
             {
             text: [
@@ -163,7 +182,7 @@ class ComandaService {
             },
             style: 'tableStyle' // Aplicar el estilo a la tabla
             },
-            
+
         ],
         styles: {
             titulo: {
@@ -172,12 +191,18 @@ class ComandaService {
             margin: [0, 0, 0, 2]
             },
             fecha: {
-            fontSize: 10, 
+            fontSize: 10,
             margin: [0, 0, 0, 5]
             },
             datos: {
             fontSize: 11,
             margin: [3, 0, 0, 0]
+            },
+            tipoPedido: {
+            fontSize: 12,
+            bold: true,
+            decoration: 'underline',
+            margin: [0, 0, 0, 4]
             },
             observacion: {
             fontSize: 11,
@@ -202,6 +227,10 @@ class ComandaService {
         content: [
             { text: comanda.fechaPedido + " " +  comanda.horaPedido, alignment:"center", style:'fecha' },
 
+            ...(comanda.tipoPedidoId !== 1 ? [
+                { text: (comanda.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'center' }
+            ] : []),
+
             {
             text: [
                 { text: 'Nro: ', bold: true },
@@ -209,20 +238,31 @@ class ComandaService {
             ],
             style: 'datos'
             },
-            {
-            text: [
-                { text: 'Mesa: ', bold: true },
-                { text: comanda.mesa }
-            ],
-            style: 'datos'
-            },
-            {
-            text: [
-                { text: 'Mozo: ', bold: true },
-                { text: comanda.mozo }
-            ],
-            style: 'datos'
-            },
+
+            ...(comanda.tipoPedidoId === 1 ? [
+                {
+                    text: [
+                        { text: 'Mesa: ', bold: true },
+                        { text: comanda.mesa }
+                    ],
+                    style: 'datos'
+                },
+                {
+                    text: [
+                        { text: 'Mozo: ', bold: true },
+                        { text: comanda.mozo }
+                    ],
+                    style: 'datos'
+                }
+            ] : [
+                {
+                    text: [
+                        { text: 'Cliente: ', bold: true },
+                        { text: comanda.cliente }
+                    ],
+                    style: 'datos'
+                }
+            ]),
 
             {
             text: [
@@ -256,7 +296,7 @@ class ComandaService {
             },
             style: 'tableStyle' // Aplicar el estilo a la tabla
             },
-            
+
         ],
         styles: {
             titulo: {
@@ -265,12 +305,18 @@ class ComandaService {
             margin: [0, 0, 0, 2]
             },
             fecha: {
-            fontSize: 12, 
+            fontSize: 12,
             margin: [0, 0, 0, 5]
             },
             datos: {
             fontSize: 13,
             margin: [3, 0, 0, 0]
+            },
+            tipoPedido: {
+            fontSize: 14,
+            bold: true,
+            decoration: 'underline',
+            margin: [0, 0, 0, 5]
             },
             observacion: {
             fontSize: 12,

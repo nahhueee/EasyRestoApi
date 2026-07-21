@@ -1,72 +1,39 @@
 import {AdminServ} from '../services/adminService';
-import {ParametrosRepo} from '../data/parametrosRepository';
-import {Router, Request, Response} from 'express';
-import logger from '../log/loggerGeneral';
-import config from '../conf/app.config';
+import {Router, Request, Response, NextFunction} from 'express';
+import { TerminalServ } from '../services/terminalService';
 const router : Router  = Router();
 
-//Obtiene la version en linea del sistema 
-router.get('/obtener-version', async (req:Request, res:Response) => {
-    try{ 
-        const dni = await ParametrosRepo.ObtenerParametros('dni');
-        if(dni!=""){
-            let habilitado = await AdminServ.ObtenerHabilitacion(dni); //Verificamos que el usuario pueda actualizar
-            if(habilitado){
-                const respuesta = await AdminServ.ObtenerVersionApp();
-
-                // if(config.produccion)
-                //     respuesta.serverStatus = 'production';
-                // else
-                //     respuesta.serverStatus = 'test';
-
-                return res.json(respuesta);
-            }
-        }
-
-        return res.json(null);
+//Obtiene la version en linea del sistema
+router.get('/obtener-version', async (req:Request, res:Response, next:NextFunction) => {
+    try{
+        const respuesta = await AdminServ.ObtenerVersionWeb();
+        return res.json(respuesta);
 
     } catch(error:any){
-        logger.error("Error al intentar obtener la versión de la aplicación. " + error);
-        res.status(200).send(null);
+       next(error);
     }
 });
 
-//Verifica la existencia del cliente mediante DNI
-router.get('/verificar-existencia/:dni', async (req:Request, res:Response) => {
-    try{ 
-        res.json(await AdminServ.VerificarExistenciaCliente(req.params.dni));
+//Valida la identidad del cliente
+router.get('/validar/:dni', async (req:Request, res:Response, next:NextFunction) => {
+    try{
+        res.json(await AdminServ.ValidarIdentidad(req.params.dni));
 
     } catch(error:any){
-        let msg = "Error al intentar verificar el cliente con el DNI " + req.params.dni + ".";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
-    }
-});
-
-//Obtiene la terminal asociada al DNI y mac del cliente para esta aplicacion
-router.get('/obtener-app-cliente/:dni', async (req:Request, res:Response) => {
-    try{ 
-        res.json(await AdminServ.ObtenerAppCliente(req.params.dni));
-
-    } catch(error:any){
-        let msg = "Error al intentar obtener la terminal asociada al cliente " + req.params.dni + ".";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+       next(error);
     }
 });
 
 //Verifica si el cliente esta habilitado para acceder a ciertas funciones
-router.get('/obtener-habilitacion/:dni', async (req:Request, res:Response) => {
-    try{ 
-        res.json(await AdminServ.ObtenerHabilitacion(req.params.dni));
-
+router.get('/obtener-habilitacion', async (req:Request, res:Response, next:NextFunction) => {
+    try{
+        await TerminalServ.VerificarTerminalHabilitada();
+        return res.json({habilitado: true});
     } catch(error:any){
-        let msg = "Error al intentar obtener la habilitacion de terminal asociada al cliente " + req.params.dni + ".";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+       next(error);
     }
 });
 
 
 // Export the router
-export default router; 
+export default router;
