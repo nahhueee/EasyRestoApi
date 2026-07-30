@@ -14,7 +14,11 @@ async function setup() {
       "out/src/db/tasks",
       "out/src/certs",
       "out/src/fonts",
-      "out/www"
+      "out/www",
+      // El logger del updater escribe updater/actualizaciones.log y winston no
+      // crea el directorio: tiene que existir en el deploy.
+      "out/updater",
+      "out/updater/downloads"
     ];
 
     // Crear todas las carpetas

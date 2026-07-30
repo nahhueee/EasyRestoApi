@@ -86,12 +86,26 @@ app.get('/easyresto', (req, res) => {
 
 // Fase 1 AdminServer - Trabajo 5: endpoints de diagnóstico que consume el
 // frontend Tauri directamente (no pasan por adminRoute.ts). Calco de EasySalesApi.
-import { ParametrosRepo } from './data/parametrosRepository';
+import pkg from '../package.json';
+import { CheckearActualizacion } from '../updater/config/CheckearActualizacion';
+import { DescargarActualizacion } from '../updater/config/DescargarActualizacion';
 const fsSync = require('fs');
 
-app.get('/easyresto/version', async (req, res) => {
+//Mantenimiento
+app.get('/easyresto/status', (req, res) => {
+    res.status(200).send('Servidor de En Linea');
+});
+
+/**
+ * Versión del backend.
+ * Fuente de verdad: package.json, igual que EasySalesApi. Es la misma versión
+ * que compara CheckearActualizacion, y el bootstrap la necesita antes de que
+ * la base de datos esté disponible. Antes se leía de parametros.version, que
+ * podía divergir de la versión de código realmente instalada.
+ */
+app.get('/easyresto/version', (req, res) =>{
     return res.json({
-        version: await ParametrosRepo.ObtenerParametros('version')
+        version: pkg.version
     });
 });
 
@@ -111,12 +125,38 @@ app.get('/easyresto/terminal', (req, res) => {
     }
 });
 
-// NOTA: EasySalesApi también expone /pendiente y /forzar-descarga, respaldados
-// por un pipeline real de descarga/aplicación/rollback de updates
-// (updater/config/{Checkear,Descargar,Aplicar}Actualizacion.ts + EjecutarRollback.ts).
-// Ese pipeline NO existe en EasyRestoApi — no se replica acá sin confirmar
-// alcance y modelo de proceso (EasyResto no corre bajo PM2). Ver resumen de
-// la sesión para la pregunta pendiente a Nahu.
+/**
+ * ¿Hay una actualización descargada esperando ser aplicada?
+ * La escribe DescargarActualizacion y la consume AplicarActualizacion en el
+ * próximo arranque. El frontend la usa como gate: mientras el backend tenga
+ * un update pendiente, no dispara el suyo.
+ */
+app.get('/easyresto/pendiente', (req, res) =>{
+    const PENDING_FILE = path.join(process.cwd(), 'updater', 'pendiente.json');
+    const existe = fsSync.existsSync(PENDING_FILE);
+
+    return res.json({
+        pendiente: existe
+    });
+});
+
+app.get('/easyresto/forzar-descarga', async (req, res) => {
+  try {
+    const info = await CheckearActualizacion();
+    if (info.desactualizado) {
+      await DescargarActualizacion(info);
+      console.log("Se descargo la actualizacion")
+    }
+
+    return res.status(200).json("OK");
+
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: 'Error al forzar descarga'
+    });
+  }
+});
 
 // ARCHIVOS DE IONIC 
 app.use(express.static(path.join(__dirname, "../www")));
