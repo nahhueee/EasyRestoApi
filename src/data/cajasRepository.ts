@@ -207,9 +207,12 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
             }
         else
         {
-            if (filtros.responsable != 0) filtro += " AND c.idResponsable = " + filtros.responsable;
-            if (filtros.fecha != null) filtro += " AND c.fecha = '" + moment(filtros.fecha).format('YYYY-MM-DD') + "' ";
-        
+            if (filtros.responsable != null && filtros.responsable != 0) filtro += " AND c.idResponsable = " + filtros.responsable;
+            // moment().format('YYYY-MM-DD') siempre devuelve un string fijo (o "Invalid date"),
+            // no hay input de usuario libre acá — seguro sin parametrizar.
+            if (filtros.inicio != null && filtros.inicio != "") filtro += " AND c.fecha >= '" + moment(filtros.inicio).format('YYYY-MM-DD') + "' ";
+            if (filtros.fin != null && filtros.fin != "") filtro += " AND c.fecha <= '" + moment(filtros.fin).format('YYYY-MM-DD') + "' ";
+
             filtro += (filtros.finalizada) ? " AND c.finalizada = 1 " : " AND c.finalizada = 0 ";
         }
         // #endregion
