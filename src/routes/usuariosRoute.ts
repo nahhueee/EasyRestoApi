@@ -3,6 +3,23 @@ import {Router, Request, Response} from 'express';
 import logger from '../log/loggerGeneral';
 const router : Router  = Router();
 
+router.post('/login', async (req:Request, res:Response) => {
+    try{
+        const usuario = await UsuariosRepo.Login(req.body.idUsuario, req.body.pass);
+
+        //401 y no 500: es un error de usuario esperado, no una falla del sistema.
+        //Mensaje único para usuario inexistente y password incorrecta.
+        if(!usuario) return res.status(401).json({ message: "Usuario o contraseña incorrecta." });
+
+        res.json(usuario);
+
+    } catch(error:any){
+        let msg = "Error al intentar iniciar sesión.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+
 //#region OBTENER
 router.post('/obtener', async (req:Request, res:Response) => {
     try{ 

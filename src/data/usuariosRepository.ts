@@ -1,4 +1,7 @@
+import bcrypt from 'bcryptjs';
 import db from '../db/db.config';
+
+const BCRYPT_COST = 10;
 
 class UsuariosRepository{
 
@@ -40,12 +43,50 @@ class UsuariosRepository{
         }
     }
 
+    // Login: la comparación de password es server-side con bcrypt.compare. Antes se hacía
+    // en el navegador (ingresar.component.ts) contra el texto plano que el backend entregaba
+    // en obtener-usuario/{id}: cualquiera con DevTools la leía. El hash nunca sale de acá.
+    async Login(idUsuario:string, pass:string){
+        const connection = await db.getConnection();
+
+        try {
+            const [rows] = await connection.query(
+                " SELECT u.id, u.nombre, u.email, u.pass, u.idCargo, c.nombre cargo, u.idRol, r.nombre rol " +
+                " FROM usuarios u " +
+                " LEFT JOIN cargos c on c.id = u.idCargo " +
+                " LEFT JOIN roles r on r.id = u.idRol " +
+                " WHERE u.id = ? ",
+                [idUsuario]
+            );
+            const usuario = (rows as any[])[0];
+
+            // Mismo mensaje genérico exista o no el usuario — no confirmar a un atacante
+            // si un id de usuario es válido.
+            if (!usuario || !usuario.pass) return null;
+
+            const valido = await bcrypt.compare(pass, usuario.pass);
+            if (!valido) return null;
+
+            delete usuario.pass;
+            return usuario;
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
     async UsuariosSelector(){
         const connection = await db.getConnection();
-        
+
         try {
-            const sql = " SELECT u.id, u.nombre, c.nombre cargo FROM usuarios u" + 
-                        " LEFT JOIN cargos c on c.id = u.idCargo ";
+            // Se agregan idCargo y el rol (mismo JOIN que Login) para que la pantalla de
+            // ingreso pueda distinguir admin/empleado y etiquetar la fila sin una segunda
+            // llamada a obtener-usuario/{id} al hacer click.
+            const sql = " SELECT u.id, u.nombre, u.idCargo, c.nombre cargo, u.idRol, r.nombre rol FROM usuarios u" +
+                        " LEFT JOIN cargos c on c.id = u.idCargo " +
+                        " LEFT JOIN roles r on r.id = u.idRol ";
 
             const [rows] = await connection.query(sql);
             return [rows][0];
@@ -95,8 +136,12 @@ class UsuariosRepository{
             if(existe)//Verificamos si ya existe un usuario con el mismo nombre o correo
                 return "Ya existe un usuario con el mismo nombre o correo.";
             
+            //Los EMPLEADO no llevan contraseña — solo hasheamos si vino algo.
+            //bcrypt.hash("") es válido pero no queremos consagrar una password vacía hasheada.
+            const passGuardar = data.pass ? await bcrypt.hash(data.pass, BCRYPT_COST) : data.pass;
+
             const consulta = "INSERT INTO usuarios(nombre, email, pass, idCargo, idRol) VALUES (?, ?, ?, ?, ?)";
-            const parametros = [data.nombre.toUpperCase(), data.email, data.pass, data.cargo.id, data.rol.id];
+            const parametros = [data.nombre.toUpperCase(), data.email, passGuardar, data.cargo.id, data.rol.id];
             
             await connection.query(consulta, parametros);
             return "OK";
@@ -116,15 +161,23 @@ class UsuariosRepository{
             if(existe)//Verificamos si ya existe un usuario con el mismo nombre o correo
                 return "Ya existe un usuario con el mismo nombre o correo.";
             
-            const consulta = `UPDATE usuarios 
+            //Si data.pass viene vacío, el admin no quiere cambiar la contraseña (el front ya
+            //no la precarga porque el backend no la devuelve más) — no tocar la columna, o
+            //un UPDATE con pass='' pisaría el hash existente y nadie vuelve a entrar.
+            const cambiarPass = !!data.pass;
+            const setPass = cambiarPass ? " pass = ?, " : "";
+
+            const consulta = `UPDATE usuarios
                               SET nombre = ?,
                               email = ?,
-                              pass = ?,
+                              ${setPass}
                               idCargo = ?,
                               idRol = ?
                               WHERE id = ? `;
 
-            const parametros = [data.nombre.toUpperCase(), data.email, data.pass, data.cargo.id, data.rol.id, data.id];
+            const parametros = cambiarPass
+                ? [data.nombre.toUpperCase(), data.email, await bcrypt.hash(data.pass, BCRYPT_COST), data.cargo.id, data.rol.id, data.id]
+                : [data.nombre.toUpperCase(), data.email, data.cargo.id, data.rol.id, data.id];
             await connection.query(consulta, parametros);
             return "OK";
 
@@ -182,8 +235,11 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         }
             
         //Arma la Query con el paginado y los filtros correspondientes
+        //Columnas explícitas (no u.*): pass nunca sale en ninguna respuesta del backend.
+        //Con u.* el hash viajaba al front y addmod-usuarios lo reenviaba tal cual al
+        //modificar, rehasheando el hash y dejando al usuario sin poder ingresar.
         query = count +
-            " SELECT u.*, c.nombre cargo, r.nombre rol " +
+            " SELECT u.id, u.nombre, u.email, u.idCargo, u.idRol, c.nombre cargo, r.nombre rol " +
             " FROM usuarios u " +
             " LEFT JOIN cargos c on c.id = u.idCargo " +
             " LEFT JOIN roles r on r.id = u.idRol " +
