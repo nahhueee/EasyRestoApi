@@ -34,9 +34,15 @@ async function setup() {
     // Definir archivos individuales
     const filesToCopy = [
       "package.json",
+      // package-lock.json: no lo necesita el server en runtime, pero sí "npm ci"
+      // cuando build:server-installer instala node_modules directo en out/.
+      "package-lock.json",
       ".env",
       "knexfile.js",
       "src/db/script.sql",
+      // Variante no destructiva de script.sql, para el bootstrap de la base desde
+      // el instalador de servidor (Instalador/scripts/setup-mysql-bootstrap.ps1).
+      "src/db/script-bootstrap.sql",
       "src/fonts/Roboto-Italic.ttf",
       "src/fonts/Roboto-Medium.ttf",
       "src/fonts/Roboto-Regular.ttf",
@@ -48,13 +54,22 @@ async function setup() {
     const configFile = `config.${env}.json`;  
     filesToCopy.push(configFile);
 
-    // Copiar archivos individuales
+    // Copiar archivos individuales. Se saltea el que no exista en vez de abortar:
+    // .env no está versionado y no todas las máquinas de build lo tienen.
     for (const file of filesToCopy) {
-      await fs.copy(file, path.join("out", file));
+      if (await fs.pathExists(file)) {
+        await fs.copy(file, path.join("out", file));
+      }
     }
 
     // Copiar toda la carpeta tasks
     await fs.copy("src/db/tasks", "out/src/db/tasks");
+
+    // node_modules NO se copia acá a propósito: este setup.js corre como parte de
+    // "npm run build", que también usa el updater incremental (scripts/release.js +
+    // build-update.js). Meter node_modules en TODOS los builds sería tiempo perdido
+    // en cada release normal. El instalador de servidor, que sí los necesita, corre
+    // "npm ci" directo sobre out/ como paso aparte — ver "build:server-installer".
 
     //#region Cambiar la propiedad 'produccion' a true en el archivo de configuración
     const configFilePath = path.resolve(__dirname, `out/${configFile}`);
