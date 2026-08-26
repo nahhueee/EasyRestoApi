@@ -14,6 +14,12 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors());
 
+// Lee x-usuario-id / x-puesto y los deja en req.contexto para las routes que
+// auditan en `eventos` (handoff_precios_ajuste_masivo_easyresto.md, PR2).
+// Global y temprano: nada de estado de sesión leído del lado del servidor.
+import { identidadMiddleware } from './middlewares/identidadMiddleware';
+app.use(identidadMiddleware);
+
 // ARCHIVOS ESTÁTICOS DEL BACKEND
 app.use(express.static(path.join(__dirname, 'upload')));
 

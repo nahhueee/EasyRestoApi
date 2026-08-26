@@ -1,15 +1,28 @@
 import db from '../db/db.config';
+import { randomUUID } from 'crypto';
 import { Adicional } from '../models/Adicional';
 import { Categoria } from '../models/Categoria';
 import { ProductoAdicional } from '../models/ProductoAdicional';
 import { ProductoPrecio } from '../models/ProductoPrecio';
 import { Producto } from '../models/Producto';
 import { ListaPrecio } from '../models/ListaPrecio';
+import { eventosRepository } from './eventosRepository';
 import { query } from 'express';
 
 // Columnas habilitadas para ORDER BY dinámico (whitelist). filtros.orden llega
 // del cliente: no se puede concatenar directo a la query (ver ObtenerQuery).
 const COLUMNAS_ORDEN_VALIDAS = ['id', 'nombre', 'idCategoria', 'cantidad'];
+
+// Quién y desde dónde originó la escritura, para auditar en `eventos`. Hasta
+// que exista el token de Fase 4 viaja como headers (x-usuario-id / x-puesto),
+// leídos en identidadMiddleware.ts y propagados explícitamente hasta acá -
+// nunca se lee "el usuario actual" desde estado global (architecture.md §9.2).
+export interface ContextoAuditoria {
+    idUsuario: number | null;
+    puesto: string | null;
+    loteId?: string | null;
+    observacion?: string | null;
+}
 
 class ProductoRepository{
 
@@ -72,7 +85,7 @@ class ProductoRepository{
     //#endregion
 
     //#region ABM
-    async Agregar(data:Producto): Promise<string>{
+    async Agregar(data:Producto, contexto:ContextoAuditoria): Promise<string>{
         const connection = await db.getConnection();
 
         try {
@@ -106,10 +119,10 @@ class ProductoRepository{
             data.id = resultado.insertId;
             //#endregion
 
-            //Insertamos los precios
+            //Insertamos los precios por el punto único de escritura (audita PRECIO_CREAR)
             for (const precio of data.precios!) {
                 precio.idProducto = data.id;
-                await InsertPrecioProducto(connection, precio);
+                await guardarPrecio(connection, precio, null, 'PRECIO_CREAR', contexto);
             };
 
             //Insertamos adicionales
@@ -134,7 +147,7 @@ class ProductoRepository{
         }
     }
 
-    async Modificar(data:Producto): Promise<string>{
+    async Modificar(data:Producto, contexto:ContextoAuditoria): Promise<string>{
         const connection = await db.getConnection();
         try {
             let existe = await ValidarExistencia(connection, data, true);
@@ -176,8 +189,9 @@ class ProductoRepository{
             //Sincronizamos los precios por diff (UPDATE/INSERT/DELETE) en vez de
             //DELETE-ALL + reinsert: el DELETE-ALL quema el id de productos_precio en
             //cada guardado, y sin id estable no hay a qué colgar historial ni undo
-            //(ver handoff_precios_ajuste_masivo_easyresto.md).
-            await SincronizarPreciosProducto(connection, data.id, data.precios!);
+            //(ver handoff_precios_ajuste_masivo_easyresto.md). Cada escritura pasa
+            //por guardarPrecio, que audita en `eventos`.
+            await SincronizarPreciosProducto(connection, data.id, data.precios!, contexto);
 
             //Insertamos adicionales (sin cambios: fuera del alcance de este PR)
             await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [data.id]);
@@ -200,15 +214,21 @@ class ProductoRepository{
         }
     }
 
-    async Eliminar(id:string): Promise<string>{
+    async Eliminar(id:string, contexto:ContextoAuditoria): Promise<string>{
         const connection = await db.getConnection();
 
         try {
              //Iniciamos una transaccion
             await connection.beginTransaction();
 
-            //Eliminamos los precios del producto
-            await connection.query("DELETE FROM productos_precio WHERE idProducto = ?", [id]);
+            //Eliminamos los precios del producto por el punto único de escritura
+            //(audita PRECIO_ELIMINAR de cada uno; los eventos sobreviven al borrado
+            //del producto porque `eventos` no tiene FK)
+            const idNumerico = Number(id);
+            const mapaPrecios = await ObtenerPreciosProducto(connection, [idNumerico]);
+            for (const precio of mapaPrecios.get(idNumerico) ?? []) {
+                await guardarPrecio(connection, precio, precio, 'PRECIO_ELIMINAR', contexto);
+            }
 
             //Eliminamos los adicionales del producto
             await connection.query("DELETE FROM productos_adicional WHERE idProducto = ?", [id]);
@@ -230,6 +250,107 @@ class ProductoRepository{
         }
     }
 
+    //#endregion
+
+    //#region AJUSTE MASIVO
+    // simular-ajuste y ajustar comparten CalcularCambiosAjuste para garantizar
+    // que el valor que se muestra en el preview sea exactamente el que se
+    // termina persistiendo (handoff PR3, criterio de aceptación).
+    async SimularAjusteMasivo(datos:any): Promise<any>{
+        const connection = await db.getConnection();
+
+        try {
+            const errorValidacion = ValidarDatosAjuste(datos);
+            if (errorValidacion) return { error: errorValidacion };
+
+            const { cambios, saltados } = await CalcularCambiosAjuste(connection, datos);
+
+            // cantidadAfectada solo cuenta lo que realmente se va a escribir si se
+            // confirma -los omitidos (ej. quedarían en costo/precio <= 0) se
+            // muestran en el preview pero no se persisten (ver AjustarMasivo).
+            const cantidadAfectada = cambios.filter((c:any) => !c.omitido).length;
+
+            return { cambios, saltados, cantidadAfectada };
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
+    async AjustarMasivo(datos:any, contexto:ContextoAuditoria): Promise<any>{
+        const connection = await db.getConnection();
+
+        try {
+            const errorValidacion = ValidarDatosAjuste(datos);
+            if (errorValidacion) return { error: errorValidacion };
+
+            const { cambios } = await CalcularCambiosAjuste(connection, datos);
+
+            // loteId nuevo por lote: agrupa todos los eventos de esta operación
+            // para poder mostrarla como una unidad y (PR5) deshacerla completa.
+            const loteId = randomUUID();
+            const contextoLote:ContextoAuditoria = {
+                ...contexto,
+                loteId,
+                observacion: datos.motivo ?? contexto.observacion ?? null,
+            };
+
+            await connection.beginTransaction();
+
+            let cantidadAfectada = 0;
+            for (const cambio of cambios) {
+                // Omitido (costo/precio quedaría en cero o negativo): se saltea sin
+                // frenar el resto del lote. Antes esto rechazaba TODO el ajuste -un
+                // solo producto con costo en 0 bloqueaba a los otros 49-, algo que
+                // además el usuario recién se enteraba en un toast que se cerraba
+                // solo. Ahora se ve marcado en el preview (simular-ajuste) y acá
+                // simplemente no se escribe.
+                if (cambio.omitido) continue;
+
+                const precioNuevo = new ProductoPrecio({
+                    id: cambio.idPrecio,
+                    idProducto: cambio.idProducto,
+                    listaPrecio: new ListaPrecio({ id: cambio.idListaPrecio }),
+                    descripcion: cambio.descripcion,
+                    posicionDes: cambio.posicionDes,
+                    costo: cambio.costoNuevo,
+                    precio: cambio.precioNuevo,
+                });
+
+                let escribio:boolean;
+                if (cambio.esNuevo) {
+                    escribio = await guardarPrecio(connection, precioNuevo, null, 'PRECIO_CREAR', contextoLote);
+                } else {
+                    const anterior = new ProductoPrecio({
+                        id: cambio.idPrecio,
+                        idProducto: cambio.idProducto,
+                        listaPrecio: new ListaPrecio({ id: cambio.idListaPrecio }),
+                        descripcion: cambio.descripcion,
+                        posicionDes: cambio.posicionDes,
+                        costo: cambio.costoActual,
+                        precio: cambio.precioActual,
+                    });
+                    escribio = await guardarPrecio(connection, precioNuevo, anterior, 'PRECIO_AJUSTE_MASIVO', contextoLote);
+                }
+
+                // cantidadAfectada cuenta escrituras reales (= filas en `eventos`),
+                // no filas calculadas: si el redondeo deja un valor idéntico al
+                // actual, guardarPrecio no escribe y acá tampoco debe contarlo.
+                if (escribio) cantidadAfectada++;
+            }
+
+            await connection.commit();
+            return { loteId, cantidadAfectada };
+
+        } catch (error:any) {
+            await connection.rollback();
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
     //#endregion
 }
 
@@ -429,8 +550,9 @@ function PrecioCambio(actual:ProductoPrecio, nuevo:ProductoPrecio):boolean{
 // - precio entrante sin id, o con id que no existe en BD → INSERT
 // - id que está en BD y no vino en el payload → DELETE
 // Preserva el id de las filas no tocadas: es el prerequisito para poder
-// engancharles historial/undo más adelante.
-async function SincronizarPreciosProducto(connection, idProducto:number, preciosNuevos:ProductoPrecio[]):Promise<void>{
+// engancharles historial/undo más adelante. Cada escritura pasa por
+// guardarPrecio (punto único), que decide si audita.
+async function SincronizarPreciosProducto(connection, idProducto:number, preciosNuevos:ProductoPrecio[], contexto:ContextoAuditoria):Promise<void>{
     const mapaActuales = await ObtenerPreciosProducto(connection, [idProducto]);
     const preciosActuales = mapaActuales.get(idProducto) ?? [];
     const actualesPorId = new Map(preciosActuales.map(p => [p.id, p]));
@@ -439,23 +561,86 @@ async function SincronizarPreciosProducto(connection, idProducto:number, precios
     for (const precioNuevo of preciosNuevos) {
         precioNuevo.idProducto = idProducto;
 
-        const actual = precioNuevo.id != null ? actualesPorId.get(precioNuevo.id) : undefined;
+        const anterior = precioNuevo.id != null ? actualesPorId.get(precioNuevo.id) ?? null : null;
+        if (anterior) idsEntrantes.add(anterior.id!);
 
-        if (actual) {
-            idsEntrantes.add(actual.id!);
-            if (PrecioCambio(actual, precioNuevo))
-                await ActualizarPrecioProducto(connection, precioNuevo);
-        } else {
-            await InsertPrecioProducto(connection, precioNuevo);
-        }
+        await guardarPrecio(connection, precioNuevo, anterior, anterior ? 'PRECIO_MODIFICAR' : 'PRECIO_CREAR', contexto);
     }
 
-    const idsABorrar = preciosActuales
-        .filter(p => !idsEntrantes.has(p.id!))
-        .map(p => p.id);
+    const preciosABorrar = preciosActuales.filter(p => !idsEntrantes.has(p.id!));
+    for (const precioABorrar of preciosABorrar) {
+        await guardarPrecio(connection, precioABorrar, precioABorrar, 'PRECIO_ELIMINAR', contexto);
+    }
+}
 
-    if (idsABorrar.length > 0)
-        await connection.query("DELETE FROM productos_precio WHERE id IN (?)", [idsABorrar]);
+// Punto único de escritura de productos_precio (handoff PR2): decide la acción
+// según el estado anterior -que trae el caller, ya lo tiene por el diff, evita
+// una query extra por fila- y solo escribe + audita en `eventos` si hay un
+// cambio real. La reutiliza tal cual el ajuste masivo (PR3), precio por precio,
+// pasando loteId en el contexto. Devuelve si escribió o no (PR3 lo usa para que
+// `cantidadAfectada` refleje escrituras reales, no filas calculadas).
+async function guardarPrecio(
+    connection,
+    precio:ProductoPrecio,
+    anterior:ProductoPrecio | null,
+    accion:'PRECIO_CREAR' | 'PRECIO_MODIFICAR' | 'PRECIO_ELIMINAR' | 'PRECIO_AJUSTE_MASIVO',
+    contexto:ContextoAuditoria
+):Promise<boolean>{
+
+    if (accion === 'PRECIO_ELIMINAR') {
+        if (!anterior) return false; // ya no existe: nada que borrar ni auditar
+
+        await connection.query("DELETE FROM productos_precio WHERE id = ?", [anterior.id]);
+        await eventosRepository.registrarEvento(connection, {
+            loteId: contexto.loteId ?? null,
+            puesto: contexto.puesto,
+            idUsuario: contexto.idUsuario,
+            accion: 'PRECIO_ELIMINAR',
+            entidad: 'productos_precio',
+            entidadId: anterior.id,
+            datosBefore: anterior,
+            datosAfter: null,
+            observacion: contexto.observacion ?? null,
+        });
+        return true;
+    }
+
+    if (accion === 'PRECIO_CREAR') {
+        const idNuevo = await InsertPrecioProducto(connection, precio);
+        await eventosRepository.registrarEvento(connection, {
+            loteId: contexto.loteId ?? null,
+            puesto: contexto.puesto,
+            idUsuario: contexto.idUsuario,
+            accion: 'PRECIO_CREAR',
+            entidad: 'productos_precio',
+            entidadId: idNuevo,
+            datosBefore: null,
+            datosAfter: { ...precio, id: idNuevo },
+            observacion: contexto.observacion ?? null,
+        });
+        return true;
+    }
+
+    // PRECIO_MODIFICAR / PRECIO_AJUSTE_MASIVO: comparamos antes de escribir para
+    // no generar ruido en el historial cuando no cambió nada. `accion` se pasa
+    // tal cual llegó -antes quedaba hardcodeado a PRECIO_MODIFICAR acá, lo que
+    // iba a mentir sobre el origen del cambio en cuanto el ajuste masivo
+    // empezara a reutilizar esta rama-.
+    if (!anterior || !PrecioCambio(anterior, precio)) return false;
+
+    await ActualizarPrecioProducto(connection, precio);
+    await eventosRepository.registrarEvento(connection, {
+        loteId: contexto.loteId ?? null,
+        puesto: contexto.puesto,
+        idUsuario: contexto.idUsuario,
+        accion,
+        entidad: 'productos_precio',
+        entidadId: precio.id,
+        datosBefore: anterior,
+        datosAfter: precio,
+        observacion: contexto.observacion ?? null,
+    });
+    return true;
 }
 
 async function ActualizarPrecioProducto(connection, precioProducto:ProductoPrecio):Promise<void>{
@@ -479,7 +664,7 @@ async function ActualizarPrecioProducto(connection, precioProducto:ProductoPreci
     }
 }
 
-async function InsertPrecioProducto(connection, precioProducto:ProductoPrecio):Promise<void>{
+async function InsertPrecioProducto(connection, precioProducto:ProductoPrecio):Promise<number>{
     try {
         const consulta = " INSERT INTO productos_precio(idProducto, idListaPrecio, descripcion, posicionDes, costo, precio) " +
                          " VALUES(?, ?, ?, ?, ?, ?) ";
@@ -492,7 +677,8 @@ async function InsertPrecioProducto(connection, precioProducto:ProductoPrecio):P
             precioProducto.costo,
             precioProducto.precio,
         ];
-        await connection.query(consulta, parametros);
+        const [resultado]:any = await connection.query(consulta, parametros);
+        return resultado.insertId;
 
     } catch (error) {
         throw error;
@@ -513,6 +699,196 @@ async function InsertAdicionalProducto(connection, adicionalProducto:ProductoAdi
     } catch (error) {
         throw error;
     }
+}
+//#endregion
+
+//#region AJUSTE MASIVO
+function ValidarDatosAjuste(datos:any):string | null{
+    if (!Array.isArray(datos.idsProducto) || datos.idsProducto.length === 0)
+        return "Debe seleccionar al menos un producto.";
+
+    if (datos.idsProducto.length > 1000)
+        return "No se pueden ajustar más de 1000 productos en un mismo lote.";
+
+    if (datos.idListaPrecioOrigen == null)
+        return "Debe indicar la lista de precios de origen.";
+
+    if (!['PORCENTAJE', 'MONTO_FIJO', 'PRECIO_FIJO'].includes(datos.operacion))
+        return "Operación de ajuste inválida.";
+
+    if (!['PRECIO', 'COSTO', 'AMBOS'].includes(datos.aplicarA))
+        return "Debe indicar a qué campo aplicar el ajuste.";
+
+    // PRECIO_FIJO + AMBOS dejaría costo = precio en cada fila -margen cero-.
+    // No tiene un caso de uso real, se bloquea acá en vez de dejarlo a criterio
+    // de la UI de PR4.
+    if (datos.operacion === 'PRECIO_FIJO' && datos.aplicarA === 'AMBOS')
+        return "PRECIO_FIJO no puede aplicarse a costo y precio a la vez.";
+
+    if (typeof datos.valor !== 'number' || Number.isNaN(datos.valor))
+        return "El valor del ajuste es inválido.";
+
+    if (datos.redondeo === 'MULTIPLO' && (!datos.multiploRedondeo || datos.multiploRedondeo <= 0))
+        return "Debe indicar un múltiplo de redondeo válido.";
+
+    // La UI ya saca esta opción del selector, pero se valida también acá: sin
+    // esto, CalcularCambiosAjuste simplemente no arma el modo copia si son
+    // iguales (no falla, no hace nada), lo cual sería un no-op silencioso
+    // -el usuario pidió copiar y no pasa nada, sin ningún aviso-.
+    if (datos.idListaPrecioDestino != null && datos.idListaPrecioDestino === datos.idListaPrecioOrigen)
+        return "La lista destino no puede ser la misma que la de origen.";
+
+    return null;
+}
+
+function CalcularValorAjustado(valorActual:number, operacion:string, valor:number):number{
+    switch (operacion) {
+        case 'PORCENTAJE': return valorActual * (1 + valor / 100);
+        case 'MONTO_FIJO': return valorActual + valor;
+        case 'PRECIO_FIJO': return valor;
+        default: return valorActual;
+    }
+}
+
+function AplicarRedondeo(valor:number, redondeo?:string, multiploRedondeo?:number):number{
+    switch (redondeo) {
+        case 'ENTERO':
+            return Math.round(valor);
+        case 'MULTIPLO': {
+            const multiplo = multiploRedondeo && multiploRedondeo > 0 ? multiploRedondeo : 1;
+            return Math.round(valor / multiplo) * multiplo;
+        }
+        case 'NINGUNO':
+        default:
+            // Sin redondeo pedido igual se limpia a 2 decimales: PORCENTAJE sobre
+            // un float arrastra basura de punto flotante (100 * 1.12 = 112.00000000000001)
+            // y ese valor es el que se compara contra `costoActual`/`precioActual`
+            // en PrecioCambio y el que se persiste.
+            return Math.round(valor * 100) / 100;
+    }
+}
+
+async function ObtenerPreciosParaAjuste(connection, idsProducto:number[], idListaPrecio:number):Promise<any[]>{
+    if (idsProducto.length === 0) return [];
+
+    const consulta = " SELECT pp.*, p.nombre nombreProducto FROM productos_precio pp " +
+                     " INNER JOIN productos p ON p.id = pp.idProducto " +
+                     " WHERE pp.idProducto IN (?) AND pp.idListaPrecio = ? " +
+                     " ORDER BY p.nombre, pp.id";
+
+    const [rows] = await connection.query(consulta, [idsProducto, idListaPrecio]);
+    return Array.isArray(rows) ? rows : [];
+}
+
+// Núcleo compartido por simular-ajuste y ajustar: misma consulta, mismo cálculo.
+// Es lo que garantiza que el preview coincida con lo que termina persistido
+// (criterio de aceptación de PR3) -si cada endpoint recalculara por su cuenta,
+// un cambio futuro en uno solo los desincroniza en silencio.
+//
+// Un precio cuyo resultado quedaría en cero o negativo NO aborta el lote entero
+// -antes sí, y un solo producto con costo en 0 bloqueaba el ajuste de los otros
+// 49-. Se marca `omitido` con el motivo: el preview lo muestra resaltado y
+// AjustarMasivo simplemente no lo escribe. Mismo criterio que `saltados`
+// (producto sin precio en origen): informar, no frenar todo por un caso puntual.
+async function CalcularCambiosAjuste(connection, datos:any):Promise<{cambios:any[], saltados:any[]}>{
+    const filasOrigen = await ObtenerPreciosParaAjuste(connection, datos.idsProducto, datos.idListaPrecioOrigen);
+
+    const idsConPrecio = new Set(filasOrigen.map((f:any) => f.idProducto));
+    const saltados = datos.idsProducto
+        .filter((id:number) => !idsConPrecio.has(id))
+        .map((id:number) => ({ idProducto: id, motivo: 'Sin precio en la lista de origen seleccionada.' }));
+
+    const cambios:any[] = [];
+
+    for (const fila of filasOrigen) {
+        const costoActual = Number(fila.costo);
+        const precioActual = Number(fila.precio);
+
+        let costoNuevo = costoActual;
+        let precioNuevo = precioActual;
+
+        if (datos.aplicarA === 'COSTO' || datos.aplicarA === 'AMBOS')
+            costoNuevo = AplicarRedondeo(CalcularValorAjustado(costoActual, datos.operacion, datos.valor), datos.redondeo, datos.multiploRedondeo);
+
+        if (datos.aplicarA === 'PRECIO' || datos.aplicarA === 'AMBOS')
+            precioNuevo = AplicarRedondeo(CalcularValorAjustado(precioActual, datos.operacion, datos.valor), datos.redondeo, datos.multiploRedondeo);
+
+        let omitido = false;
+        let motivoOmitido: string | undefined;
+
+        if ((datos.aplicarA === 'COSTO' || datos.aplicarA === 'AMBOS') && costoNuevo <= 0) {
+            omitido = true;
+            motivoOmitido = `El costo quedaría en ${costoNuevo}.`;
+        }
+        if ((datos.aplicarA === 'PRECIO' || datos.aplicarA === 'AMBOS') && precioNuevo <= 0) {
+            omitido = true;
+            motivoOmitido = motivoOmitido
+                ? 'El costo y el precio quedarían en cero o negativo.'
+                : `El precio quedaría en ${precioNuevo}.`;
+        }
+
+        cambios.push({
+            idPrecio: fila.id,
+            idProducto: fila.idProducto,
+            idListaPrecio: datos.idListaPrecioOrigen,
+            nombreProducto: fila.nombreProducto,
+            descripcion: fila.descripcion,
+            posicionDes: fila.posicionDes,
+            costoActual, costoNuevo, precioActual, precioNuevo,
+            esNuevo: false,
+            omitido, motivoOmitido,
+        });
+    }
+
+    // Modo copia: no se recalcula nada para destino, se copia el mismo valor
+    // nuevo ya calculado para origen -es una sincronización, no un ajuste
+    // independiente sobre el valor actual de destino-. Los que ya existen en
+    // destino (mismo producto + misma descripción de variante) se actualizan;
+    // los que faltan se crean. Si el origen quedó omitido, destino hereda el
+    // mismo motivo -copiar un valor inválido no tiene sentido.
+    if (datos.idListaPrecioDestino != null && datos.idListaPrecioDestino !== datos.idListaPrecioOrigen) {
+        const filasDestino = await ObtenerPreciosParaAjuste(connection, datos.idsProducto, datos.idListaPrecioDestino);
+        const destinoPorClave = new Map(filasDestino.map((f:any) => [`${f.idProducto}|${f.descripcion}`, f]));
+
+        const cambiosOrigen = [...cambios]; // snapshot: no iterar sobre lo que se va agregando
+        for (const cambio of cambiosOrigen) {
+            const filaDestino = destinoPorClave.get(`${cambio.idProducto}|${cambio.descripcion}`);
+
+            if (filaDestino) {
+                cambios.push({
+                    idPrecio: filaDestino.id,
+                    idProducto: cambio.idProducto,
+                    idListaPrecio: datos.idListaPrecioDestino,
+                    nombreProducto: cambio.nombreProducto,
+                    descripcion: cambio.descripcion,
+                    posicionDes: filaDestino.posicionDes,
+                    costoActual: Number(filaDestino.costo),
+                    costoNuevo: cambio.costoNuevo,
+                    precioActual: Number(filaDestino.precio),
+                    precioNuevo: cambio.precioNuevo,
+                    esNuevo: false,
+                    omitido: cambio.omitido, motivoOmitido: cambio.motivoOmitido,
+                });
+            } else {
+                cambios.push({
+                    idPrecio: null,
+                    idProducto: cambio.idProducto,
+                    idListaPrecio: datos.idListaPrecioDestino,
+                    nombreProducto: cambio.nombreProducto,
+                    descripcion: cambio.descripcion,
+                    posicionDes: cambio.posicionDes,
+                    costoActual: null,
+                    costoNuevo: cambio.costoNuevo,
+                    precioActual: null,
+                    precioNuevo: cambio.precioNuevo,
+                    esNuevo: true,
+                    omitido: cambio.omitido, motivoOmitido: cambio.motivoOmitido,
+                });
+            }
+        }
+    }
+
+    return { cambios, saltados };
 }
 //#endregion
 

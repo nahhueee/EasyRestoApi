@@ -114,10 +114,34 @@ class UsuariosRepository{
 
     async RolesSelector(){
         const connection = await db.getConnection();
-        
+
         try {
             const [rows] = await connection.query('SELECT id, nombre FROM roles');
             return [rows][0];
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
+    // Primer chequeo de autorización server-side de la app (handoff PR3,
+    // productosRoute.ts /precios/simular-ajuste y /precios/ajustar). El resto
+    // de los gates "ADMINISTRADOR" existentes (main-productos, main-usuarios,
+    // etc.) son solo de front -esto no los reemplaza, es puntual a ese
+    // endpoint-. Mismo JOIN que Login().
+    async EsAdministrador(idUsuario:number | null):Promise<boolean>{
+        if (idUsuario == null) return false;
+
+        const connection = await db.getConnection();
+        try {
+            const [rows] = await connection.query(
+                "SELECT c.nombre cargo FROM usuarios u LEFT JOIN cargos c ON c.id = u.idCargo WHERE u.id = ?",
+                [idUsuario]
+            );
+            const usuario = (rows as any[])[0];
+            return usuario?.cargo === 'ADMINISTRADOR';
 
         } catch (error:any) {
             throw error;

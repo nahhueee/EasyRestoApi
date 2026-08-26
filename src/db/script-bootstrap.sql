@@ -134,6 +134,24 @@ CREATE TABLE productos_precio (
     precio DECIMAL(10,2)
 )ENGINE=InnoDB;
 
+-- Auditoría genérica (architecture.md §12.3). Sin FKs a propósito: tiene que
+-- sobrevivir al borrado del producto/usuario/precio que referencia.
+CREATE TABLE eventos (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    loteId CHAR(36) NULL,
+    puesto VARCHAR(60) NULL,
+    idUsuario INT NULL,
+    accion VARCHAR(40) NOT NULL,
+    entidad VARCHAR(40) NOT NULL,
+    entidadId INT NULL,
+    datosBefore JSON NULL,
+    datosAfter JSON NULL,
+    observacion VARCHAR(255) NULL,
+    INDEX idx_eventos_lote (loteId),
+    INDEX idx_eventos_entidad (entidad, entidadId, fecha)
+)ENGINE=InnoDB;
+
 CREATE TABLE cajas (
     id INT PRIMARY KEY,
     idResponsable INT,
