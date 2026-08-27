@@ -99,6 +99,66 @@ router.post('/precios/ajustar', async (req:Request, res:Response) => {
         res.status(500).send(msg);
     }
 });
+
+router.post('/precios/deshacer-lote/:loteId', async (req:Request, res:Response) => {
+    try{
+        // Mismo gate que simular-ajuste/ajustar: deshacer un lote es al menos
+        // tan sensible como aplicarlo.
+        const contexto = (req as any).contexto;
+        const esAdministrador = await UsuariosRepo.EsAdministrador(contexto?.idUsuario ?? null);
+        if (!esAdministrador) return res.status(403).send("No tiene permisos para realizar esta acción.");
+
+        res.json(await prodRepository.DeshacerLoteAjuste(req.params.loteId, contexto));
+
+    } catch(error:any){
+        let msg = "Error al deshacer el lote de ajuste.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+//#endregion
+
+//#region AUDITORÍA (PR6)
+router.get('/precios/lotes', async (req:Request, res:Response) => {
+    try{
+        // Mismo gate que el resto de ajuste-masivo: la lista completa de
+        // cambios de precio del comercio es al menos tan sensible como
+        // aplicarlos o deshacerlos.
+        const contexto = (req as any).contexto;
+        const esAdministrador = await UsuariosRepo.EsAdministrador(contexto?.idUsuario ?? null);
+        if (!esAdministrador) return res.status(403).send("No tiene permisos para realizar esta acción.");
+
+        const filtros = {
+            pagina: req.query.pagina != null ? Number(req.query.pagina) : 1,
+            tamanioPagina: req.query.tamanioPagina != null ? Number(req.query.tamanioPagina) : undefined,
+            idUsuario: req.query.idUsuario != null ? Number(req.query.idUsuario) : null,
+            fechaDesde: req.query.fechaDesde ?? null,
+            fechaHasta: req.query.fechaHasta ?? null,
+            estado: req.query.estado ?? null,
+        };
+
+        res.json(await prodRepository.ObtenerLotes(filtros));
+
+    } catch(error:any){
+        let msg = "Error al obtener el listado de lotes de ajuste.";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
+
+router.get('/precios/historial/:idPrecio', async (req:Request, res:Response) => {
+    try{
+        // Sin gate de administrador a propósito: es el historial de un solo
+        // precio, ya visible para quien tenga abierto ese producto en
+        // addmod-productos -no es la vista agregada de todos los lotes.
+        res.json(await prodRepository.ObtenerHistorialPrecio(Number(req.params.idPrecio)));
+
+    } catch(error:any){
+        let msg = "Error al obtener el historial del precio nro " + req.params.idPrecio + ".";
+        logger.error(msg + " " + error.message);
+        res.status(500).send(msg);
+    }
+});
 //#endregion
 
 // Export the router

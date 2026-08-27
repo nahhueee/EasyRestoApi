@@ -21,6 +21,9 @@ export interface ContextoAuditoria {
     idUsuario: number | null;
     puesto: string | null;
     loteId?: string | null;
+    // Solo se usa al auditar una reversión (PR5/PR6): apunta al loteId que se
+    // está revirtiendo. Ver eventosRepository.existeReversionDeLote/ObtenerLotes.
+    loteIdOrigen?: string | null;
     observacion?: string | null;
 }
 
@@ -122,7 +125,7 @@ class ProductoRepository{
             //Insertamos los precios por el punto único de escritura (audita PRECIO_CREAR)
             for (const precio of data.precios!) {
                 precio.idProducto = data.id;
-                await guardarPrecio(connection, precio, null, 'PRECIO_CREAR', contexto);
+                await guardarPrecio(connection, precio, null, 'INSERT', 'PRECIO_CREAR', contexto);
             };
 
             //Insertamos adicionales
@@ -227,7 +230,7 @@ class ProductoRepository{
             const idNumerico = Number(id);
             const mapaPrecios = await ObtenerPreciosProducto(connection, [idNumerico]);
             for (const precio of mapaPrecios.get(idNumerico) ?? []) {
-                await guardarPrecio(connection, precio, precio, 'PRECIO_ELIMINAR', contexto);
+                await guardarPrecio(connection, precio, precio, 'DELETE', 'PRECIO_ELIMINAR', contexto);
             }
 
             //Eliminamos los adicionales del producto
@@ -321,7 +324,7 @@ class ProductoRepository{
 
                 let escribio:boolean;
                 if (cambio.esNuevo) {
-                    escribio = await guardarPrecio(connection, precioNuevo, null, 'PRECIO_CREAR', contextoLote);
+                    escribio = await guardarPrecio(connection, precioNuevo, null, 'INSERT', 'PRECIO_CREAR', contextoLote);
                 } else {
                     const anterior = new ProductoPrecio({
                         id: cambio.idPrecio,
@@ -332,7 +335,7 @@ class ProductoRepository{
                         costo: cambio.costoActual,
                         precio: cambio.precioActual,
                     });
-                    escribio = await guardarPrecio(connection, precioNuevo, anterior, 'PRECIO_AJUSTE_MASIVO', contextoLote);
+                    escribio = await guardarPrecio(connection, precioNuevo, anterior, 'UPDATE', 'PRECIO_AJUSTE_MASIVO', contextoLote);
                 }
 
                 // cantidadAfectada cuenta escrituras reales (= filas en `eventos`),
@@ -346,6 +349,148 @@ class ProductoRepository{
 
         } catch (error:any) {
             await connection.rollback();
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
+    // Deshacer un lote de ajuste masivo (PR5). Un lote de AjustarMasivo solo
+    // contiene eventos PRECIO_CREAR (filas nuevas por modo copia) y
+    // PRECIO_AJUSTE_MASIVO (filas existentes ajustadas) -nunca PRECIO_ELIMINAR,
+    // AjustarMasivo no borra nada-. Revertir cada uno es, respectivamente, un
+    // DELETE de la fila creada o un UPDATE de vuelta al valor de antes.
+    //
+    // No se aborta todo el deshacer por un conflicto puntual: se revierte lo
+    // que se puede y se reporta el resto en `conflictos` -mismo criterio que
+    // los omitidos de AjustarMasivo, no bloquear 49 reversiones válidas por 1
+    // que no se puede hacer en silencio.
+    async DeshacerLoteAjuste(loteId:string, contexto:ContextoAuditoria): Promise<any>{
+        const connection = await db.getConnection();
+
+        try {
+            const eventosLote = await eventosRepository.obtenerEventosPorLote(connection, loteId);
+            if (eventosLote.length === 0)
+                return { error: "No se encontró el lote indicado." };
+
+            if (await eventosRepository.existeReversionDeLote(connection, loteId))
+                return { error: "Este lote ya fue revertido." };
+
+            // Último evento por cada precio tocado en el lote: si no coincide con
+            // el evento de este lote, algo lo tocó después (edición manual, otro
+            // ajuste, un borrado) y no se revierte en silencio (handoff PR5).
+            const entidadIds = eventosLote
+                .map((e:any) => e.entidadId)
+                .filter((id:any): id is number => id != null);
+            const ultimosEventos = await eventosRepository.obtenerUltimosEventosPorEntidad(connection, 'productos_precio', entidadIds);
+
+            const loteIdReversion = randomUUID();
+            const contextoReversion:ContextoAuditoria = {
+                idUsuario: contexto.idUsuario,
+                puesto: contexto.puesto,
+                loteId: loteIdReversion,
+                loteIdOrigen: loteId,
+                observacion: `Reversión del lote ${loteId}`,
+            };
+
+            await connection.beginTransaction();
+
+            let cantidadRevertida = 0;
+            const conflictos:any[] = [];
+
+            for (const evento of eventosLote) {
+                const ultimoEventoId = evento.entidadId != null ? ultimosEventos.get(evento.entidadId) : undefined;
+
+                if (ultimoEventoId !== evento.id) {
+                    conflictos.push({
+                        idPrecio: evento.entidadId,
+                        motivo: 'Este precio fue modificado o eliminado después del ajuste; no se revirtió.',
+                    });
+                    continue;
+                }
+
+                let escribio:boolean;
+                if (evento.accion === 'PRECIO_CREAR') {
+                    // La fila no existía antes del lote: revertirla es borrarla.
+                    // Auditado como PRECIO_REVERTIR, no PRECIO_ELIMINAR -en el
+                    // historial tiene que distinguirse de un borrado manual-.
+                    const actual = new ProductoPrecio({ ...evento.datosAfter, id: evento.entidadId });
+                    escribio = await guardarPrecio(connection, actual, actual, 'DELETE', 'PRECIO_REVERTIR', contextoReversion);
+                } else {
+                    // PRECIO_AJUSTE_MASIVO: se restaura el valor de antes del ajuste.
+                    const restaurado = new ProductoPrecio({ ...evento.datosBefore, id: evento.entidadId });
+                    const actual = new ProductoPrecio({ ...evento.datosAfter, id: evento.entidadId });
+                    escribio = await guardarPrecio(connection, restaurado, actual, 'UPDATE', 'PRECIO_REVERTIR', contextoReversion);
+                }
+
+                if (escribio) cantidadRevertida++;
+            }
+
+            await connection.commit();
+            return { loteIdReversion, cantidadRevertida, conflictos };
+
+        } catch (error:any) {
+            await connection.rollback();
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+    //#endregion
+
+    //#region AUDITORÍA (PR6)
+    // Lotes de ajuste de precios, paginado server-side (pantalla "Auditoría").
+    // Un lote es un grupo de eventos con el mismo loteId -solo los que generó
+    // AjustarMasivo (loteId IS NOT NULL, entidad='productos_precio'). Las
+    // ediciones individuales (loteId NULL) no aparecen acá -se ven desde
+    // ObtenerHistorialPrecio, por producto-. Las filas de reversión
+    // (accion='PRECIO_REVERTIR') tampoco se listan como lotes propios: su
+    // efecto se pliega en el `estado` del lote que revirtieron, no en una fila
+    // aparte -evita mostrar el "deshacer de un deshacer" como si fuera otra
+    // operación de negocio.
+    async ObtenerLotes(filtros:any):Promise<any>{
+        const connection = await db.getConnection();
+
+        try {
+            const queryRegistros = ObtenerLotesQuery(filtros, false);
+            const queryTotal = ObtenerLotesQuery(filtros, true);
+
+            const [rows]:any = await connection.query(queryRegistros.sql, queryRegistros.parametros);
+            const resultadoTotal:any = await connection.query(queryTotal.sql, queryTotal.parametros);
+
+            const registros = (Array.isArray(rows) ? rows : []).map((row:any) => ({
+                loteId: row.loteId,
+                fecha: row.fecha,
+                idUsuario: row.idUsuario,
+                nombreUsuario: row.nombreUsuario,
+                puesto: row.puesto,
+                totalPrecios: row.totalEventos,
+                revertidos: row.revertidos,
+                // Derivado, no una columna: 0 revertidos = vigente, todos = revertido,
+                // lo que quede en el medio = parcial (deshacer-lote con conflictos).
+                estado: row.revertidos === 0 ? 'VIGENTE' : (row.revertidos === row.totalEventos ? 'REVERTIDO' : 'PARCIAL'),
+                observacion: row.observacion,
+            }));
+
+            return { total: resultadoTotal[0][0].total, registros };
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
+    // Historial completo de un precio puntual (ícono de historial en
+    // addmod-productos): mezcla ediciones individuales y las que vinieron de
+    // un lote (ajuste masivo o su reversión), más reciente primero.
+    async ObtenerHistorialPrecio(idPrecio:number):Promise<any[]>{
+        const connection = await db.getConnection();
+
+        try {
+            return await eventosRepository.obtenerEventosPorEntidad(connection, 'productos_precio', idPrecio);
+
+        } catch (error:any) {
             throw error;
         } finally{
             connection.release();
@@ -454,6 +599,89 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{sql:string, pa
         throw error;
     }
 }
+
+//#region AUDITORÍA (PR6)
+// Mismo patrón count/endCount + paginado que ObtenerQuery (arriba). El
+// conteo de revertidos por lote sale de un LEFT JOIN contra los propios
+// eventos filtrados a PRECIO_REVERTIR y agrupados por loteIdOrigen -sin esa
+// columna (migración PR6) contar reversiones por lote en una página entera
+// exigiría una query por lote-. `estado` es derivado (revertidos vs.
+// totalEventos) y no una columna: se filtra acá con HAVING sobre esos mismos
+// alias, referenciándolos como permite MySQL.
+//
+// Columnas no incluidas en el GROUP BY (idUsuario, puesto, observacion,
+// revertidos) van envueltas en MAX(): son funcionalmente dependientes de
+// loteId por construcción (un lote lo escribe una sola llamada a
+// AjustarMasivo, con un único usuario/puesto), pero MySQL con
+// ONLY_FULL_GROUP_BY no lo sabe y las rechaza sin el wrapper.
+function ObtenerLotesQuery(filtros:any, esTotal:boolean):{sql:string, parametros:any[]}{
+    let filtro:string = "";
+    let having:string = "";
+    let paginado:string = "";
+
+    let count:string = "";
+    let endCount:string = "";
+    const parametros:any[] = ['productos_precio'];
+
+    // #region FILTROS
+    if (filtros.idUsuario != null && filtros.idUsuario != "") {
+        filtro += " AND e.idUsuario = ? ";
+        parametros.push(filtros.idUsuario);
+    }
+    if (filtros.fechaDesde != null && filtros.fechaDesde != "") {
+        filtro += " AND e.fecha >= ? ";
+        parametros.push(filtros.fechaDesde);
+    }
+    if (filtros.fechaHasta != null && filtros.fechaHasta != "") {
+        filtro += " AND e.fecha <= ? ";
+        parametros.push(filtros.fechaHasta);
+    }
+
+    if (filtros.estado === 'VIGENTE') having = " HAVING revertidos = 0 ";
+    else if (filtros.estado === 'REVERTIDO') having = " HAVING revertidos = totalEventos ";
+    else if (filtros.estado === 'PARCIAL') having = " HAVING revertidos > 0 AND revertidos < totalEventos ";
+    // #endregion
+
+    if (esTotal)
+    {//Si esTotal agregamos para obtener un total de la consulta
+        count = "SELECT COUNT(*) AS total FROM ( ";
+        endCount = " ) as subquery";
+    }
+    else
+    {//De lo contrario paginamos
+        if (filtros.tamanioPagina != null){
+            paginado = " LIMIT ? OFFSET ? ";
+            parametros.push(filtros.tamanioPagina, (filtros.pagina - 1) * filtros.tamanioPagina);
+        }
+    }
+
+    const sql = count +
+            " SELECT e.loteId AS loteId, " +
+            "        MIN(e.fecha) AS fecha, " +
+            "        MAX(e.idUsuario) AS idUsuario, " +
+            "        MAX(COALESCE(u.nombre, 'ELIMINADO')) AS nombreUsuario, " +
+            "        MAX(e.puesto) AS puesto, " +
+            "        COUNT(*) AS totalEventos, " +
+            "        MAX(e.observacion) AS observacion, " +
+            "        MAX(COALESCE(r.revertidos, 0)) AS revertidos " +
+            " FROM eventos e " +
+            " LEFT JOIN usuarios u ON u.id = e.idUsuario " +
+            " LEFT JOIN ( " +
+            "     SELECT loteIdOrigen, COUNT(*) AS revertidos FROM eventos " +
+            "     WHERE accion = 'PRECIO_REVERTIR' AND loteIdOrigen IS NOT NULL " +
+            "     GROUP BY loteIdOrigen " +
+            " ) r ON r.loteIdOrigen = e.loteId " +
+            " WHERE e.entidad = ? AND e.loteId IS NOT NULL AND e.accion <> 'PRECIO_REVERTIR' " +
+            filtro +
+            " GROUP BY e.loteId " +
+            having +
+            " ORDER BY MIN(e.id) DESC " +
+            paginado +
+            endCount;
+
+    return {sql, parametros};
+}
+//#endregion
 
 //#region DETALLES DE PRODUCTO
 async function ObtenerPreciosProducto(connection, idsProducto:number[]):Promise<Map<number, ProductoPrecio[]>>{
@@ -564,38 +792,48 @@ async function SincronizarPreciosProducto(connection, idProducto:number, precios
         const anterior = precioNuevo.id != null ? actualesPorId.get(precioNuevo.id) ?? null : null;
         if (anterior) idsEntrantes.add(anterior.id!);
 
-        await guardarPrecio(connection, precioNuevo, anterior, anterior ? 'PRECIO_MODIFICAR' : 'PRECIO_CREAR', contexto);
+        await guardarPrecio(connection, precioNuevo, anterior, anterior ? 'UPDATE' : 'INSERT', anterior ? 'PRECIO_MODIFICAR' : 'PRECIO_CREAR', contexto);
     }
 
     const preciosABorrar = preciosActuales.filter(p => !idsEntrantes.has(p.id!));
     for (const precioABorrar of preciosABorrar) {
-        await guardarPrecio(connection, precioABorrar, precioABorrar, 'PRECIO_ELIMINAR', contexto);
+        await guardarPrecio(connection, precioABorrar, precioABorrar, 'DELETE', 'PRECIO_ELIMINAR', contexto);
     }
 }
 
-// Punto único de escritura de productos_precio (handoff PR2): decide la acción
-// según el estado anterior -que trae el caller, ya lo tiene por el diff, evita
-// una query extra por fila- y solo escribe + audita en `eventos` si hay un
-// cambio real. La reutiliza tal cual el ajuste masivo (PR3), precio por precio,
-// pasando loteId en el contexto. Devuelve si escribió o no (PR3 lo usa para que
-// `cantidadAfectada` refleje escrituras reales, no filas calculadas).
+// Punto único de escritura de productos_precio (handoff PR2): solo escribe +
+// audita en `eventos` si hay un cambio real. La reutiliza tal cual el ajuste
+// masivo (PR3), precio por precio, pasando loteId en el contexto. Devuelve si
+// escribió o no (PR3 lo usa para que `cantidadAfectada` refleje escrituras
+// reales, no filas calculadas).
+//
+// `operacion` (qué hacer físicamente) y `accion` (qué label queda en
+// `eventos.accion`) son parámetros separados a propósito -antes eran el mismo
+// string, lo que alcanzaba mientras cada operación física tenía un único
+// label posible. Deshacer un lote (PR5) rompe esa correspondencia: revertir
+// una creación es un DELETE físico, pero tiene que auditarse como
+// PRECIO_REVERTIR, no como PRECIO_ELIMINAR -son hechos distintos en el
+// historial, uno es "se deshizo un ajuste" y el otro "alguien borró la
+// variante a mano"-.
 async function guardarPrecio(
     connection,
     precio:ProductoPrecio,
     anterior:ProductoPrecio | null,
-    accion:'PRECIO_CREAR' | 'PRECIO_MODIFICAR' | 'PRECIO_ELIMINAR' | 'PRECIO_AJUSTE_MASIVO',
+    operacion:'INSERT' | 'UPDATE' | 'DELETE',
+    accion:'PRECIO_CREAR' | 'PRECIO_MODIFICAR' | 'PRECIO_ELIMINAR' | 'PRECIO_AJUSTE_MASIVO' | 'PRECIO_REVERTIR',
     contexto:ContextoAuditoria
 ):Promise<boolean>{
 
-    if (accion === 'PRECIO_ELIMINAR') {
+    if (operacion === 'DELETE') {
         if (!anterior) return false; // ya no existe: nada que borrar ni auditar
 
         await connection.query("DELETE FROM productos_precio WHERE id = ?", [anterior.id]);
         await eventosRepository.registrarEvento(connection, {
             loteId: contexto.loteId ?? null,
+            loteIdOrigen: contexto.loteIdOrigen ?? null,
             puesto: contexto.puesto,
             idUsuario: contexto.idUsuario,
-            accion: 'PRECIO_ELIMINAR',
+            accion,
             entidad: 'productos_precio',
             entidadId: anterior.id,
             datosBefore: anterior,
@@ -605,13 +843,14 @@ async function guardarPrecio(
         return true;
     }
 
-    if (accion === 'PRECIO_CREAR') {
+    if (operacion === 'INSERT') {
         const idNuevo = await InsertPrecioProducto(connection, precio);
         await eventosRepository.registrarEvento(connection, {
             loteId: contexto.loteId ?? null,
+            loteIdOrigen: contexto.loteIdOrigen ?? null,
             puesto: contexto.puesto,
             idUsuario: contexto.idUsuario,
-            accion: 'PRECIO_CREAR',
+            accion,
             entidad: 'productos_precio',
             entidadId: idNuevo,
             datosBefore: null,
@@ -621,16 +860,15 @@ async function guardarPrecio(
         return true;
     }
 
-    // PRECIO_MODIFICAR / PRECIO_AJUSTE_MASIVO: comparamos antes de escribir para
-    // no generar ruido en el historial cuando no cambió nada. `accion` se pasa
-    // tal cual llegó -antes quedaba hardcodeado a PRECIO_MODIFICAR acá, lo que
-    // iba a mentir sobre el origen del cambio en cuanto el ajuste masivo
-    // empezara a reutilizar esta rama-.
+    // UPDATE (PRECIO_MODIFICAR / PRECIO_AJUSTE_MASIVO / PRECIO_REVERTIR):
+    // comparamos antes de escribir para no generar ruido en el historial
+    // cuando no cambió nada.
     if (!anterior || !PrecioCambio(anterior, precio)) return false;
 
     await ActualizarPrecioProducto(connection, precio);
     await eventosRepository.registrarEvento(connection, {
         loteId: contexto.loteId ?? null,
+        loteIdOrigen: contexto.loteIdOrigen ?? null,
         puesto: contexto.puesto,
         idUsuario: contexto.idUsuario,
         accion,
