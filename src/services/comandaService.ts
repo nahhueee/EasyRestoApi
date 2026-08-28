@@ -55,6 +55,11 @@ class ComandaService {
         comanda.tipoPedido = pedido.tipo?.nombre;
         comanda.observacion = pedido.obs!;
         comanda.horaPedido = pedido.hora;
+
+        // Aviso en la comanda de elaborados: el pedido también tiene bebidas (van en otra comanda)
+        comanda.tieneBebidas = tipo === "elaborado"
+            && pedido.detalles!.some(item => item.tipoProd == "terciarizado" && item.quitado == false);
+
         const fecha = new Date(pedido.fecha!);
         comanda.fechaPedido = fecha.toLocaleDateString('es-ES', {
         day: '2-digit', month: '2-digit', year: '2-digit'
@@ -183,6 +188,10 @@ class ComandaService {
             style: 'tableStyle' // Aplicar el estilo a la tabla
             },
 
+            ...(comanda.tieneBebidas ? [
+                { text: 'Este pedido también incluye bebidas', style: 'avisoBebidas', alignment: 'center' }
+            ] : []),
+
         ],
         styles: {
             titulo: {
@@ -212,6 +221,12 @@ class ComandaService {
             tableStyle: {
             fontSize: 10, // Cambiar el tamaño de letra de la tabla
             margin: [0, 0, 0, 3]
+            },
+            avisoBebidas: {
+            fontSize: 9,
+            bold: true,
+            italics: true,
+            margin: [0, 4, 0, 0]
             }
         }
         };
@@ -297,6 +312,10 @@ class ComandaService {
             style: 'tableStyle' // Aplicar el estilo a la tabla
             },
 
+            ...(comanda.tieneBebidas ? [
+                { text: 'Este pedido también incluye bebidas', style: 'avisoBebidas', alignment: 'center' }
+            ] : []),
+
         ],
         styles: {
             titulo: {
@@ -326,6 +345,12 @@ class ComandaService {
             tableStyle: {
             fontSize: 11, // Cambiar el tamaño de letra de la tabla
             margin: [0, 0, 0, 3]
+            },
+            avisoBebidas: {
+            fontSize: 10,
+            bold: true,
+            italics: true,
+            margin: [0, 4, 0, 0]
             }
         }
     };

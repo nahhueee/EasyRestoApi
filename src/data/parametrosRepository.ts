@@ -84,17 +84,18 @@ class ParametrosRepository{
   async ActualizarImpresion(data:any): Promise<string>{
     const connection = await db.getConnection();
     try {
-        const consulta = `UPDATE parametros_impresion 
-                          SET 
-                          impresora = ?, 
-                          papel = ?, 
+        const consulta = `UPDATE parametros_impresion
+                          SET
+                          impresora = ?,
+                          papel = ?,
                           margenIzq = ?,
                           margenDer = ?,
                           nomLocal = ?,
                           desLocal = ?,
-                          dirLocal = ?`;
+                          dirLocal = ?,
+                          comandaDoble = ?`;
 
-        const parametros = [data.impresora, data.papel, data.margenIzq, data.margenDer, data.nomLocal, data.desLocal, data.dirLocal];
+        const parametros = [data.impresora, data.papel, data.margenIzq, data.margenDer, data.nomLocal, data.desLocal, data.dirLocal, data.comandaDoble];
         
         await connection.query(consulta, parametros);
         return "OK";

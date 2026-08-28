@@ -13,6 +13,7 @@ export class ObjComanda {
     margenIzq:number = 0;
     margenDer:number = 0;
     doble:boolean = false;
+    tieneBebidas:boolean = false;
 
     constructor(data?: any) {
         if (data) {
@@ -30,6 +31,7 @@ export class ObjComanda {
           this.margenIzq = data.margenIzq;
           this.margenDer = data.margenDer;
           this.doble = data.doble;
+          this.tieneBebidas = data.tieneBebidas;
         }
     }
 }
