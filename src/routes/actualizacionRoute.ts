@@ -1,5 +1,4 @@
 import {Router, Request, Response, NextFunction} from 'express';
-import logger from '../log/loggerGeneral';
 import { ParametrosRepo } from '../data/parametrosRepository';
 import { AppError } from '../log/AppError';
 import { CodigoError } from '../log/CodigosError';
@@ -18,9 +17,7 @@ const PAUSADO_PATH                     = path.join(UPDATER_DIR, 'pausado.json');
 
 const router : Router  = Router();
 
-// NOTA: se deja igual que EasySalesApi (sin migrar a next(error)/AppError) a
-// propósito, para no divergir del estándar real que hoy está en producción.
-router.post('/ok', async (req:Request, res:Response) => {
+router.post('/ok', async (req:Request, res:Response, next:NextFunction) => {
     try{
         if(req.body){
             //Actualizamos el aviso de que se actualizo el sistema
@@ -31,8 +28,7 @@ router.post('/ok', async (req:Request, res:Response) => {
             throw {message:"No se proporcionó data"};
 
     } catch(error:any){
-        logger.error("Error al intentar informar la actualización. " + error);
-        res.status(500).send(false);
+        next(new AppError(CodigoError.INTERNAL_ERROR, 'Error al intentar informar la actualización.', 500, { modulo: 'actualizacionRoute.ok' }, error));
     }
 });
 
@@ -55,7 +51,7 @@ router.get('/hay-confirmar-front', (_req: Request, res: Response) => {
  *
  * El heartbeat del backend lee evento-actualizacion-front.json y lo envía a AdminServer.
  */
-router.post('/evento-front', (req: Request, res: Response) => {
+router.post('/evento-front', (req: Request, res: Response, next: NextFunction) => {
     const { resultado, versionOrigen, versionActual, error: errorMsg, timestamp } = req.body;
 
     if (!resultado) {
@@ -89,9 +85,8 @@ router.post('/evento-front', (req: Request, res: Response) => {
 
         return res.json({ ok: true });
 
-    } catch (e: any) {
-        logger.error('Error escribiendo evento de actualización de frontend: ' + e.message);
-        return res.status(500).json({ ok: false });
+    } catch (error: any) {
+        next(new AppError(CodigoError.INTERNAL_ERROR, 'Error escribiendo evento de actualización de frontend.', 500, { modulo: 'actualizacionRoute.evento-front' }, error));
     }
 });
 
@@ -117,15 +112,14 @@ router.get('/hay-rollback-front', (_req: Request, res: Response) => {
  * El frontend lo llama antes de ejecutar el installer de rollback (se borra
  * antes porque la app se cierra durante la instalación).
  */
-router.post('/limpiar-rollback-front', (_req: Request, res: Response) => {
+router.post('/limpiar-rollback-front', (_req: Request, res: Response, next: NextFunction) => {
     try {
         if (fs.existsSync(ROLLBACK_FRONT_PENDIENTE_PATH)) {
             fs.unlinkSync(ROLLBACK_FRONT_PENDIENTE_PATH);
         }
         return res.json({ ok: true });
-    } catch (e: any) {
-        logger.error('Error limpiando rollback de frontend: ' + e.message);
-        return res.status(500).json({ ok: false });
+    } catch (error: any) {
+        next(new AppError(CodigoError.INTERNAL_ERROR, 'Error limpiando rollback de frontend.', 500, { modulo: 'actualizacionRoute.limpiar-rollback-front' }, error));
     }
 });
 

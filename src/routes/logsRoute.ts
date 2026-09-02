@@ -1,87 +1,156 @@
-import {Router, Request, Response} from 'express';
-import logger from '../log/loggerGeneral';
+import { Router, Request, Response, NextFunction } from 'express';
 import * as path from 'path';
-import moment from 'moment';
-const fs = require('fs').promises;
-const fileServer = require('fs');
+import * as fs from 'fs';
+import * as readline from 'readline';
+import logger from '../log/logger';
+import { AppError } from '../log/AppError';
+import { CodigoError } from '../log/CodigosError';
 
-const router : Router  = Router();
+const router: Router = Router();
 
-router.get('/general', async (req:Request, res:Response) => {
-    try{ 
-        const generalPath = path.resolve(__dirname, '../log/general.json');
+interface EntradaLog {
+  timestamp: string;
+  level: string;
+  code?: string;
+  message: string;
+  severity?: string;
+  type?: string;
+  route?: string;
+  method?: string;
+  status?: number;
+  context?: Record<string, any>;
+  cause?: string;
+  stack?: string;
+  modulo?: string;
+}
 
-        const data = await fs.readFile(generalPath, 'utf8');
-        res.json(JSON.parse(data));
+// Lee todas las líneas del error.log y las parsea
+async function leerEntradas(): Promise<EntradaLog[]> {
+  const rutaLog = path.resolve(__dirname, '../log/error.log');
 
-    } catch(error:any){
-        logger.error("Error al obtener listado de logs generales. " + error);
-        res.status(500).send(false);
+  // Si el archivo no existe todavía, devolvemos lista vacía
+  if (!fs.existsSync(rutaLog)) return [];
+
+  const fileStream = fs.createReadStream(rutaLog);
+  const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+  const entradas: EntradaLog[] = [];
+
+  for await (const linea of rl) {
+    try {
+      const log = JSON.parse(linea);
+      entradas.push({
+        timestamp: log.timestamp,
+        level:     log.level,
+        code:      log.code,
+        message:   log.message,
+        severity:  log.severity,
+        type:      log.type,
+        route:     log.route,
+        method:    log.method,
+        status:    log.status,
+        context:   log.context,
+        // cause puede venir como string directo o dentro de context
+        cause:     log.cause ?? log.context?.cause,
+        stack:     log.stack,
+        modulo:    log.modulo,
+      });
+    } catch {
+      // línea no parseable — se ignora silenciosamente
     }
+  }
+
+  return entradas;
+}
+
+// GET /logs — devuelve entradas con soporte de filtros y paginación
+// Query params: limit, offset, severity (CRITICA|ALTA|MEDIA|BAJA), code
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const limit  = Math.min(parseInt(String(req.query.limit  ?? 50), 10), 200);
+    const offset = parseInt(String(req.query.offset ?? 0), 10);
+    const severityFiltro = req.query.severity ? String(req.query.severity).toUpperCase().split(',') : [];
+    const codeFiltro     = req.query.code     ? String(req.query.code).toUpperCase() : '';
+
+    let entradas = await leerEntradas();
+
+    // Más recientes primero
+    entradas.reverse();
+
+    if (severityFiltro.length > 0) {
+      entradas = entradas.filter(e => {
+        if (severityFiltro.includes('SIN_CODIGO')) {
+          if (!e.code) return true;
+        }
+        return e.severity && severityFiltro.includes(e.severity.toUpperCase());
+      });
+    }
+
+    if (codeFiltro) {
+      entradas = entradas.filter(e => e.code?.toUpperCase() === codeFiltro);
+    }
+
+    res.json({
+      total: entradas.length,
+      datos: entradas.slice(offset, offset + limit),
+    });
+
+  } catch (error) {
+    next(new AppError(CodigoError.INTERNAL_ERROR, 'Error al leer el log de errores', 500, { modulo: 'logsRoute', metodo: 'GET /' }));
+  }
 });
 
-router.get('/update', async (req:Request, res:Response) => {
-    try{ 
-        const updatePath = path.resolve(__dirname, '../log/update.json');
+// DELETE /logs — limpia el error.log
+router.delete('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const rutaLog = path.resolve(__dirname, '../log/error.log');
 
-        const data = await fs.readFile(updatePath, 'utf8');
-        res.json(JSON.parse(data));
+    // Truncamos el archivo preservando la ruta — el logger de Winston
+    // sigue escribiendo en el mismo file descriptor
+    fs.writeFileSync(rutaLog, '');
 
-    } catch(error:any){
-        logger.error("Error al obtener listado de logs updates. " + error);
-        res.status(500).send(false);
-    }
+    res.json('OK');
+
+  } catch (error) {
+    next(new AppError(CodigoError.INTERNAL_ERROR, 'Error al limpiar el log de errores', 500, { modulo: 'logsRoute', metodo: 'DELETE /' }));
+  }
 });
 
-router.get('/facturacion', async (req:Request, res:Response) => {
-    try{ 
-        const updatePath = path.resolve(__dirname, '../log/facturacion.json');
+// POST /logs/front — recibe errores capturados por el ErrorHandler global de
+// Angular (excepciones de JS/framework, NO respuestas HTTP: esas ya quedan
+// logueadas server-side por errorMiddleware cuando ocurren).
+// Flujo "background" documentado en AppError.ts: logueamos directo con
+// logger.error() en vez de lanzar un AppError + next(), porque esto no es un
+// error de ESTE request — es un ack de que se registró el error del cliente.
+// Devolver 500 acá confundiría al front (que llama a este mismo endpoint
+// para reportar errores).
+router.post('/front', (req: Request, res: Response) => {
+  const { message, context, stack } = req.body ?? {};
 
-        const data = await fs.readFile(updatePath, 'utf8');
-        res.json(JSON.parse(data));
+  if (!message || typeof message !== 'string') {
+    res.status(400).json({ message: 'message es requerido' });
+    return;
+  }
 
-    } catch(error:any){
-        logger.error("Error al obtener listado de logs facturacion. " + error);
-        res.status(500).send(false);
-    }
-});
+  // Trazabilidad: qué terminal/usuario disparó el error (mismos headers de
+  // auditoría que setea api.service.ts en el front).
+  const puestoId  = req.header('X-Puesto-Id')  ?? undefined;
+  const usuarioId = req.header('X-Usuario-Id') ?? undefined;
 
+  // NO seteamos route/method con datos de ESTE request (POST /logs/front):
+  // esos campos son para la ruta del backend donde ocurrió el error, y acá
+  // siempre sería este mismo endpoint de reporte — dato inútil y engañoso.
+  // Si el front quiere indicar en qué pantalla ocurrió, va dentro de context.
+  logger.error({
+    type:    'FRONT_ERROR',
+    code:    CodigoError.FRONT_ERROR,
+    message,
+    context: { ...(context ?? {}), puestoId, usuarioId },
+    stack:   typeof stack === 'string' ? stack : undefined,
+  });
 
-router.post('/general', async (req:Request, res:Response) => {
-    try{ 
-        const generalPath = path.resolve(__dirname, '../log/general.json');
-        req.body.timestamp = moment().format('DD-MM-YY HH:mm');
-
-        const logs = JSON.parse(fileServer.readFileSync(generalPath, 'utf8'));
-        logs.push(req.body);
-        fileServer.writeFileSync(generalPath, JSON.stringify(logs, null, 2)); 
-
-        res.status(200).json("OK");
-
-    } catch(error:any){
-        logger.error("Error al intentar guardar un log de tipo general. " + error);
-        res.status(500).send(false);
-    }
-});
-
-router.delete('/', async (req:Request, res:Response) => {
-    try{ 
-        const generalPath = path.resolve(__dirname, '../log/general.json');
-        const updatePath = path.resolve(__dirname, '../log/update.json');
-        const facturacionPath = path.resolve(__dirname, '../log/facturacion.json');
-
-        fileServer.writeFileSync(generalPath, '[]'); // Borramos archivo general
-        fileServer.writeFileSync(updatePath, '[]'); // Borramos archivo update
-        fileServer.writeFileSync(facturacionPath, '[]'); // Borramos archivo facturacion
-
-        res.status(200).json("OK");
-
-    } catch(error:any){
-        logger.error("Error al intentar borrar el listado de logs. " + error);
-        res.status(500).send(false);
-    }
+  res.status(201).json({ ok: true });
 });
 
 
 // Export the router
-export default router; 
+export default router;

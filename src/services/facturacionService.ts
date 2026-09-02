@@ -1,5 +1,5 @@
-import logger from "../log/loggerGeneral";
-import loggerFacturacion from "../log/loggerFacturacion";
+import logger from "../log/logger";
+import { CodigoError } from "../log/CodigosError";
 import {ParametrosRepo} from '../data/parametrosRepository';
 import { Afip } from "afip.ts";
 import { AdminServ } from "./adminService";
@@ -112,14 +112,14 @@ class FacturacionService{
                         //logeamos observaciones
                         if (observaciones.Obs && Array.isArray(observaciones.Obs)) {
                             observaciones.Obs.forEach((obs: any) => {
-                              loggerFacturacion.error(`Observación ${obs.Code}: ${obs.Msg}`);
+                              logger.error({ code: CodigoError.AFIP_RECHAZO, message: `Observación ${obs.Code}: ${obs.Msg}`, modulo: 'facturacionService.Facturar' });
                             });
                         }
                     }else
                     {
                         //logeamos errores
                         errores.forEach(err => {
-                            loggerFacturacion.error(`Error ${err.Code}: ${err.Msg}`);
+                            logger.error({ code: CodigoError.AFIP_RECHAZO, message: `Error ${err.Code}: ${err.Msg}`, modulo: 'facturacionService.Facturar' });
                         });                    
                     }
                     
@@ -127,7 +127,7 @@ class FacturacionService{
                 }
 
             }else{
-                logger.error('Ocurrió un error al intentar conectar con los servicios de arca.');
+                logger.error({ code: CodigoError.AFIP_ERROR, message: 'Ocurrió un error al intentar conectar con los servicios de arca.', modulo: 'facturacionService.Facturar' });
             }
         } catch (error) {
             throw error;

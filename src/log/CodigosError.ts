@@ -8,6 +8,9 @@ export enum CodigoError {
   TERMINAL_NO_ENCONTRADA     = 'TERMINAL_NO_ENCONTRADA',
   AUTH_NO_HABILITADO         = 'AUTH_NO_HABILITADO',
   ADMIN_SERVER_ERROR         = 'ADMIN_SERVER_ERROR',
+  AFIP_RECHAZO               = 'AFIP_RECHAZO',       // ARCA rechazó el comprobante (observaciones/errores)
+  AFIP_ERROR                 = 'AFIP_ERROR',         // ARCA no disponible / error técnico al facturar
+  FRONT_ERROR                = 'FRONT_ERROR',        // Excepción JS/framework capturada en el front (POST /logs/front)
   APPCLIENTE_CREACION_ERROR  = 'APPCLIENTE_CREACION_ERROR',
   UPDATE_CHECK_ERROR         = 'UPDATE_CHECK_ERROR',   // específico EasyResto
   NOT_FOUND                  = 'NOT_FOUND',
@@ -34,6 +37,9 @@ export const SEVERIDAD: Record<CodigoError, Severidad> = {
   [CodigoError.TERMINAL_NO_ENCONTRADA]:    'BAJA',
   [CodigoError.AUTH_NO_HABILITADO]:        'BAJA',
   [CodigoError.ADMIN_SERVER_ERROR]:        'MEDIA',
+  [CodigoError.AFIP_RECHAZO]:              'MEDIA',
+  [CodigoError.AFIP_ERROR]:                'ALTA',
+  [CodigoError.FRONT_ERROR]:               'MEDIA',
   [CodigoError.APPCLIENTE_CREACION_ERROR]: 'MEDIA',
   [CodigoError.UPDATE_CHECK_ERROR]:        'BAJA',
   [CodigoError.NOT_FOUND]:                 'BAJA',

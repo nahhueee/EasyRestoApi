@@ -1,7 +1,8 @@
 import dgram from 'dgram';
 import os from 'os';
 import {AdminServ} from '../services/adminService';
-import logger from '../log/loggerGeneral';
+import logger from '../log/logger';
+import { CodigoError } from '../log/CodigosError';
 import config from '../conf/app.config';
 import path from 'path';
 //import isOnline from 'is-online';
@@ -74,7 +75,7 @@ class ServidorService {
             }
                 
       } catch(error:any){
-          logger.error("Error al intentar iniciar el modo servidor. " + error.message);
+          logger.error({ code: CodigoError.INTERNAL_ERROR, message: 'Error al intentar iniciar el modo servidor. ' + error.message, modulo: 'servidorService.IniciarModoServidor', stack: error?.stack });
       }
   }
 
@@ -93,7 +94,7 @@ class ServidorService {
     });
 
     udpServer.on('error', (err) => {
-      logger.error("Error al intentar iniciar UPD: " + err);
+      logger.error({ code: CodigoError.INTERNAL_ERROR, message: 'Error al intentar iniciar UDP: ' + err, modulo: 'servidorService.StartUDPDiscovery' });
       this.StopUDPDiscovery(true); 
     });
 

@@ -1,9 +1,10 @@
 import {UsuariosRepo} from '../data/usuariosRepository';
 import {Router, Request, Response} from 'express';
-import logger from '../log/loggerGeneral';
+import { AppError } from '../log/AppError';
+import { CodigoError } from '../log/CodigosError';
 const router : Router  = Router();
 
-router.post('/login', async (req:Request, res:Response) => {
+router.post('/login', async (req:Request, res:Response, next) => {
     try{
         const usuario = await UsuariosRepo.Login(req.body.idUsuario, req.body.pass);
 
@@ -14,101 +15,83 @@ router.post('/login', async (req:Request, res:Response) => {
         res.json(usuario);
 
     } catch(error:any){
-        let msg = "Error al intentar iniciar sesión.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar iniciar sesión.", 500, { modulo: 'usuariosRoute.login' }, error));
     }
 });
 
 //#region OBTENER
-router.post('/obtener', async (req:Request, res:Response) => {
+router.post('/obtener', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await UsuariosRepo.Obtener(req.body));
 
     } catch(error:any){
-        let msg = "Error al obtener el listado de usuarios.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al obtener el listado de usuarios.", 500, { modulo: 'usuariosRoute.obtener' }, error));
     }
 });
 
-router.get('/obtener-usuario/:id', async (req:Request, res:Response) => {
+router.get('/obtener-usuario/:id', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await UsuariosRepo.ObtenerUsuario({usuario: req.params.id }));
 
     } catch(error:any){
-        let msg = "Error al obtener el usuario nro " + req.params.id + ".";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al obtener el usuario nro " + req.params.id + ".", 500, { modulo: 'usuariosRoute.obtener-usuario' }, error));
     }
 });
 
 
-router.get('/selector-cargos', async (req:Request, res:Response) => {
+router.get('/selector-cargos', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await UsuariosRepo.CargosSelector());
 
     } catch(error:any){
-        let msg = "Error al obtener el selector de cargos.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al obtener el selector de cargos.", 500, { modulo: 'usuariosRoute.selector-cargos' }, error));
     }
 });
 
-router.get('/selector-roles', async (req:Request, res:Response) => {
+router.get('/selector-roles', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await UsuariosRepo.RolesSelector());
 
     } catch(error:any){
-        let msg = "Error al obtener el selector de roles.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al obtener el selector de roles.", 500, { modulo: 'usuariosRoute.selector-roles' }, error));
     }
 });
 
-router.get('/selector', async (req:Request, res:Response) => {
+router.get('/selector', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await UsuariosRepo.UsuariosSelector());
 
     } catch(error:any){
-        let msg = "Error al obtener el selector de usuarios.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al obtener el selector de usuarios.", 500, { modulo: 'usuariosRoute.selector' }, error));
     }
 });
 //#endregion
 
 //#region ABM
-router.post('/agregar', async (req:Request, res:Response) => {
+router.post('/agregar', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await UsuariosRepo.Agregar(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar agregar el usuario.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar agregar el usuario.", 500, { modulo: 'usuariosRoute.agregar' }, error));
     }
 });
 
-router.put('/modificar', async (req:Request, res:Response) => {
+router.put('/modificar', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await UsuariosRepo.Modificar(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar modificar el usuario.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar modificar el usuario.", 500, { modulo: 'usuariosRoute.modificar' }, error));
     }
 });
 
-router.delete('/eliminar/:id', async (req:Request, res:Response) => {
+router.delete('/eliminar/:id', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await UsuariosRepo.Eliminar(req.params.id));
 
     } catch(error:any){
-        let msg = "Error al intentar eliminar el usuario.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar eliminar el usuario.", 500, { modulo: 'usuariosRoute.eliminar' }, error));
     }
 });
 //#endregion

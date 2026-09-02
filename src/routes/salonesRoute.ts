@@ -1,30 +1,27 @@
 import {SalonesRepo} from '../data/salonesRepository';
 import {Router, Request, Response} from 'express';
-import logger from '../log/loggerGeneral';
+import { AppError } from '../log/AppError';
+import { CodigoError } from '../log/CodigosError';
 const router : Router  = Router();
 
 //#region OBTENER
-router.get('/obtener', async (req:Request, res:Response) => {
+router.get('/obtener', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await SalonesRepo.Obtener());
 
     } catch(error:any){
-        let msg = "Error al obtener el listado de salones.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al obtener el listado de salones.", 500, { modulo: 'salonesRoute.obtener' }, error));
     }
 });
 //#endregion
 
 //#region ABM
-router.put('/grabar', async (req:Request, res:Response) => {
+router.put('/grabar', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await SalonesRepo.GrabarSalones(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar guardar salones.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar guardar salones.", 500, { modulo: 'salonesRoute.grabar' }, error));
     }
 });
 //#endregion

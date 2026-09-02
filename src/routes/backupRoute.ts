@@ -1,29 +1,26 @@
 import {Router, Request, Response} from 'express';
+import { AppError } from '../log/AppError';
+import { CodigoError } from '../log/CodigosError';
 import {BackupsServ} from '../services/backupService';
-import logger from '../log/loggerGeneral';
 const router : Router  = Router();
 
 
-router.get('/forzar', async (req:Request, res:Response) => {
+router.get('/forzar', async (req:Request, res:Response, next) => {
     try{ 
         BackupsServ.IniciarCron();
         res.json('OK');
 
     } catch(error:any){
-        let msg = "Error al intentar forzar el inicio de cron.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar forzar el inicio de cron.", 500, { modulo: 'backupRoute.forzar' }, error));
     }
 });
 
-router.get('/generar', async (req:Request, res:Response) => {
+router.get('/generar', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await BackupsServ.GenerarBackupLocal());
 
     } catch(error:any){
-        let msg = "Error al intentar generar un backup local.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar generar un backup local.", 500, { modulo: 'backupRoute.generar' }, error));
     }
 });
 

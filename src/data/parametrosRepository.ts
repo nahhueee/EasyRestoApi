@@ -110,13 +110,20 @@ class ParametrosRepository{
   async ActualizarMobile(data:any): Promise<string>{
     const connection = await db.getConnection();
     try {
+        // tema/modoOscuro se suman en la Fase 1 del theming de Mobile (agosto 2026):
+        // parametros_mobile sigue siendo una sola fila -el UPDATE reescribe
+        // todo el registro, por eso el caller siempre tiene que mandar el
+        // objeto completo (leerlo con ObtenerParametrosMobile, pisar solo el
+        // campo que cambió, reenviar) en vez de un patch parcial.
         const consulta = `UPDATE parametros_mobile
                           SET 
                           imagenes = ?, 
                           todasMesas = ?, 
-                          impComprobante = ?`;
+                          impComprobante = ?,
+                          tema = ?,
+                          modoOscuro = ?`;
 
-        const parametros = [data.imagenes, data.todasMesas, data.impComprobante];
+        const parametros = [data.imagenes, data.todasMesas, data.impComprobante, data.tema, data.modoOscuro];
         console.log(parametros)
         await connection.query(consulta, parametros);
         return "OK";

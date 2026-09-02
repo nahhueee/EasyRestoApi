@@ -1,94 +1,79 @@
 import {ParametrosRepo} from '../data/parametrosRepository';
 import {Router, Request, Response} from 'express';
-import logger from '../log/loggerGeneral';
+import { AppError } from '../log/AppError';
+import { CodigoError } from '../log/CodigosError';
 const router : Router  = Router();
 import config from '../conf/app.config';
 
-router.get('/obtener/:clave', async (req:Request, res:Response) => {
+router.get('/obtener/:clave', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await ParametrosRepo.ObtenerParametros(req.params.clave));
 
     } catch(error:any){
-        let msg = "Error al intentar obtener parametros.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar obtener parametros.", 500, { modulo: 'parametrosRoute.obtener' }, error));
     }
 });
 
-router.put('/actualizar', async (req:Request, res:Response) => {
+router.put('/actualizar', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await ParametrosRepo.ActualizarParametro(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar guardar un parametro.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar guardar un parametro.", 500, { modulo: 'parametrosRoute.actualizar' }, error));
     }
 });
 
-router.get('/obtener-facturacion', async (req:Request, res:Response) => {
+router.get('/obtener-facturacion', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await ParametrosRepo.ObtenerParametrosFacturacion());
 
     } catch(error:any){
-        let msg = "Error al intentar obtener parametros de facturacion.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar obtener parametros de facturacion.", 500, { modulo: 'parametrosRoute.obtener-facturacion' }, error));
     }
 });
 
-router.get('/obtener-impresion', async (req:Request, res:Response) => {
+router.get('/obtener-impresion', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await ParametrosRepo.ObtenerParametrosImpresion());
 
     } catch(error:any){
-        let msg = "Error al intentar obtener parametros de impresion.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar obtener parametros de impresion.", 500, { modulo: 'parametrosRoute.obtener-impresion' }, error));
     }
 });
 
-router.get('/obtener-mobile', async (req:Request, res:Response) => {
+router.get('/obtener-mobile', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await ParametrosRepo.ObtenerParametrosMobile());
 
     } catch(error:any){
-        let msg = "Error al intentar obtener parametros para dispositivos moviles.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar obtener parametros para dispositivos moviles.", 500, { modulo: 'parametrosRoute.obtener-mobile' }, error));
     }
 });
 
-router.post('/actualizar-mobile', async (req:Request, res:Response) => {
+router.post('/actualizar-mobile', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await ParametrosRepo.ActualizarMobile(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar guardar parametros para dispositivos moviles.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar guardar parametros para dispositivos moviles.", 500, { modulo: 'parametrosRoute.actualizar-mobile' }, error));
     }
 });
 
-router.post('/actualizar-facturacion', async (req:Request, res:Response) => {
+router.post('/actualizar-facturacion', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await ParametrosRepo.ActualizarFacturacion(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar guardar parametros de facturación.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar guardar parametros de facturación.", 500, { modulo: 'parametrosRoute.actualizar-facturacion' }, error));
     }
 });
 
-router.post('/actualizar-impresion', async (req:Request, res:Response) => {
+router.post('/actualizar-impresion', async (req:Request, res:Response, next) => {
     try{ 
         res.json(await ParametrosRepo.ActualizarImpresion(req.body));
 
     } catch(error:any){
-        let msg = "Error al intentar guardar parametros de impresion.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar guardar parametros de impresion.", 500, { modulo: 'parametrosRoute.actualizar-impresion' }, error));
     }
 });
 
@@ -97,7 +82,7 @@ router.get('/modo-server/', async (req, res) => {
     res.json(config.esServer);
 });
 
-router.post('/actualizar-backups', async (req:Request, res:Response) => {
+router.post('/actualizar-backups', async (req:Request, res:Response, next) => {
     try{ 
         let data = req.body;
         
@@ -115,9 +100,7 @@ router.post('/actualizar-backups', async (req:Request, res:Response) => {
         
 
     } catch(error:any){
-        let msg = "Error al intentar guardar los parametros de backup.";
-        logger.error(msg + " " + error.message);
-        res.status(500).send(msg);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar guardar los parametros de backup.", 500, { modulo: 'parametrosRoute.actualizar-backups' }, error));
     }
 });
 
