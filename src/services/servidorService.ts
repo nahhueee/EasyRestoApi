@@ -3,8 +3,9 @@ import os from 'os';
 import {AdminServ} from '../services/adminService';
 import logger from '../log/logger';
 import { CodigoError } from '../log/CodigosError';
-import config from '../conf/app.config';
+import config, { configFilePath } from '../conf/app.config';
 import path from 'path';
+import { exec } from 'child_process';
 //import isOnline from 'is-online';
 const fs = require("fs-extra");
 
@@ -12,6 +13,60 @@ let udpServer;
 const udpPort = 41234;
 
 class ServidorService {
+
+  /**
+   * Persiste esServer en config.pc.json y reinicia PM2 para que tome efecto.
+   *
+   * Por qué hace falta el restart y no alcanza con mutar `config.esServer` en memoria:
+   * el host de escucha del server (127.0.0.1 vs 0.0.0.0, ver index.ts) se decide una sola
+   * vez en server.listen() al bootear el proceso. Node no puede re-bindear el socket a otro
+   * host sin reiniciar.
+   *
+   * Antes esto lo hacía el front (Tauri, comando Rust change_config_reset) escribiendo el
+   * archivo directo, asumiendo que `app` y `server` son carpetas hermanas — supuesto que se
+   * rompe según cómo se instale el front. Se movió acá porque el backend siempre sabe resolver
+   * su propio config.pc.json (ver configFilePath en app.config.ts), sin depender de dónde ni
+   * cómo esté instalado el front.
+   */
+  async CambiarModoServidor(valor: boolean): Promise<void> {
+    try {
+      config.esServer = valor;
+
+      await fs.writeJson(configFilePath, config, { spaces: 2 });
+
+      logger.info(`Modo servidor actualizado a ${valor}, reiniciando PM2...`);
+
+      // Se agenda el restart en vez de ejecutarlo ya mismo: así el caller (la ruta HTTP)
+      // llega a mandar la respuesta OK antes de que el proceso se reinicie.
+      setTimeout(() => this.RestartPm2(), 800);
+
+    } catch (error: any) {
+      logger.error({
+          code:    CodigoError.INTERNAL_ERROR,
+          message: error.message || 'Error al cambiar el modo servidor',
+          modulo:  'servidorService.CambiarModoServidor',
+          stack:   error?.stack,
+      });
+      throw error;
+    }
+  }
+
+  // Público: lo usa CambiarModoServidor() y también servidorRoute.ts POST /reiniciar
+  // (reinicio manual tras descargar una actualización de backend, ver actualizacion.component.ts).
+  RestartPm2(): void {
+    const home = process.env.USERPROFILE || '';
+    const pm2Path = `${home}\\AppData\\Roaming\\npm\\pm2.cmd`;
+
+    exec(`"${pm2Path}" restart easyresto`, (error, stdout, stderr) => {
+      if (error) {
+        logger.error({
+            code:    CodigoError.INTERNAL_ERROR,
+            message: `PM2 no pudo reiniciar easyresto: ${stderr || error.message}`,
+            modulo:  'servidorService.RestartPm2',
+        });
+      }
+    });
+  }
 
   GuardarInfoServidor(puerto:string) {
   const filePath = path.join(__dirname, '../../www/server-info.json');
