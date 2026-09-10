@@ -114,7 +114,10 @@ router.post('/facturar', async (req:Request, res:Response, next) => {
         res.json(await FacturacionServ.Facturar(req.body));
 
     } catch(error:any){
-        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar facturar el comprobante.", 500, { modulo: 'pedidosRoute.facturar' }, error));
+        // FacturacionServ.Facturar ya lanza AppError con el codigo real (VALIDACION,
+        // AFIP_RECHAZO, AFIP_TIMEOUT, AFIP_NO_DISPONIBLE, CERTIFICADOS, AFIP_ERROR).
+        // Envolverlo en INTERNAL_ERROR acá lo pisaba y el front no podía distinguir motivos.
+        next(error);
     }
 });
 //#endregion

@@ -9,7 +9,10 @@ export enum CodigoError {
   AUTH_NO_HABILITADO         = 'AUTH_NO_HABILITADO',
   ADMIN_SERVER_ERROR         = 'ADMIN_SERVER_ERROR',
   AFIP_RECHAZO               = 'AFIP_RECHAZO',       // ARCA rechazó el comprobante (observaciones/errores)
-  AFIP_ERROR                 = 'AFIP_ERROR',         // ARCA no disponible / error técnico al facturar
+  AFIP_ERROR                 = 'AFIP_ERROR',         // Error técnico al facturar (no timeout, no rechazo)
+  AFIP_TIMEOUT               = 'AFIP_TIMEOUT',       // ARCA no respondió (ECONNRESET / timeout de socket)
+  AFIP_NO_DISPONIBLE         = 'AFIP_NO_DISPONIBLE', // getServerStatus indica AppServer/DbServer/AuthServer caído
+  CERTIFICADOS               = 'CERTIFICADOS',       // Falta cert/key para firmar contra ARCA
   FRONT_ERROR                = 'FRONT_ERROR',        // Excepción JS/framework capturada en el front (POST /logs/front)
   APPCLIENTE_CREACION_ERROR  = 'APPCLIENTE_CREACION_ERROR',
   UPDATE_CHECK_ERROR         = 'UPDATE_CHECK_ERROR',   // específico EasyResto
@@ -39,6 +42,9 @@ export const SEVERIDAD: Record<CodigoError, Severidad> = {
   [CodigoError.ADMIN_SERVER_ERROR]:        'MEDIA',
   [CodigoError.AFIP_RECHAZO]:              'MEDIA',
   [CodigoError.AFIP_ERROR]:                'ALTA',
+  [CodigoError.AFIP_TIMEOUT]:              'MEDIA',
+  [CodigoError.AFIP_NO_DISPONIBLE]:        'MEDIA',
+  [CodigoError.CERTIFICADOS]:              'ALTA',
   [CodigoError.FRONT_ERROR]:               'MEDIA',
   [CodigoError.APPCLIENTE_CREACION_ERROR]: 'MEDIA',
   [CodigoError.UPDATE_CHECK_ERROR]:        'BAJA',
