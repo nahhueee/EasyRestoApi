@@ -39,10 +39,6 @@ async function setup() {
       "package-lock.json",
       ".env",
       "knexfile.js",
-      "src/db/script.sql",
-      // Variante no destructiva de script.sql, para el bootstrap de la base desde
-      // el instalador de servidor (Instalador/scripts/setup-mysql-bootstrap.ps1).
-      "src/db/script-bootstrap.sql",
       "src/fonts/Roboto-Italic.ttf",
       "src/fonts/Roboto-Medium.ttf",
       "src/fonts/Roboto-Regular.ttf",

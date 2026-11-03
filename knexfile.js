@@ -2,8 +2,9 @@ const path = require('path');
 const fs = require('fs');
 const env = process.env.NODE_ENV || 'pc';  // Si no se define NODE_ENV, por defecto 'pc'
 
-// Carga el archivo JSON desde la raíz
-const configFile = `config.${env}.json`; 
+// Rutas resueltas contra __dirname (no contra el cwd): knex corrido desde otra carpeta
+// (instalador, updater) tiene que leer la misma config y las mismas migrations.
+const configFile = path.resolve(__dirname, `config.${env}.json`);
 const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
 
 module.exports = {
@@ -16,10 +17,10 @@ module.exports = {
         database: config.db.database
       },
       migrations: {
-        directory: './src/db/tasks',  // Ruta donde se generan y almacenan las migraciones
+        directory: path.resolve(__dirname, 'src/db/tasks'),  // Ruta donde se generan y almacenan las migraciones
       },
       seeds: {
-        directory: './src/db/seeds'  // Ruta para los archivos de seeds
+        directory: path.resolve(__dirname, 'src/db/seeds')  // Ruta para los archivos de seeds
       }
     }
 };

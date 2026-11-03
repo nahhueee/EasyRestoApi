@@ -15,8 +15,16 @@
 // batched que usa ObtenerLotes.
 
 exports.up = async function (knex) {
-  await knex.raw('ALTER TABLE eventos ADD COLUMN loteIdOrigen CHAR(36) NULL AFTER loteId');
-  await knex.raw('ALTER TABLE eventos ADD INDEX idx_eventos_lote_origen (loteIdOrigen)');
+  // Guardas de idempotencia (architecture.md §13): sobre una instalación nueva la migration base ya
+  // crea la columna y el índice, y un ADD sin guarda tiraría 'duplicate column'. No cambia el efecto
+  // donde esta migration ya corrió.
+  if (!(await knex.schema.hasColumn('eventos', 'loteIdOrigen'))) {
+    await knex.raw('ALTER TABLE eventos ADD COLUMN loteIdOrigen CHAR(36) NULL AFTER loteId');
+  }
+  const [indices] = await knex.raw("SHOW INDEX FROM eventos WHERE Key_name = 'idx_eventos_lote_origen'");
+  if (indices.length === 0) {
+    await knex.raw('ALTER TABLE eventos ADD INDEX idx_eventos_lote_origen (loteIdOrigen)');
+  }
 
   // Backfill: las reversiones escritas antes de esta migración (todo el
   // testing de PR5) quedan con loteIdOrigen NULL -la columna no existía

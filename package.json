@@ -11,6 +11,7 @@
     "release": "node scripts/release.js",
     "delete-tag": "node scripts/delete-tag.js",
     "migration": "npx knex migrate:latest",
+    "db:reset": "node scripts/db-reset.js",
     "rollback": "npx knex migrate:rollback",
     "new-migration": "npx knex migrate:make"
   },

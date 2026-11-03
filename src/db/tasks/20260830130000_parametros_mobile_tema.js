@@ -19,12 +19,18 @@
 // parametros_facturacion/parametros_impresion) - el DEFAULT alcanza para
 // completar la fila existente, no hace falta backfill manual.
 exports.up = async function (knex) {
-  await knex.raw(
-    "ALTER TABLE parametros_mobile ADD COLUMN tema VARCHAR(20) NOT NULL DEFAULT 'green' AFTER impComprobante"
-  );
-  await knex.raw(
-    'ALTER TABLE parametros_mobile ADD COLUMN modoOscuro INT NOT NULL DEFAULT 0 AFTER tema'
-  );
+  // Guardas de idempotencia (architecture.md §13): sobre una instalación nueva la migration base ya
+  // trae estas columnas. No cambia el efecto donde esta migration ya corrió.
+  if (!(await knex.schema.hasColumn('parametros_mobile', 'tema'))) {
+    await knex.raw(
+      "ALTER TABLE parametros_mobile ADD COLUMN tema VARCHAR(20) NOT NULL DEFAULT 'green' AFTER impComprobante"
+    );
+  }
+  if (!(await knex.schema.hasColumn('parametros_mobile', 'modoOscuro'))) {
+    await knex.raw(
+      'ALTER TABLE parametros_mobile ADD COLUMN modoOscuro INT NOT NULL DEFAULT 0 AFTER tema'
+    );
+  }
 };
 
 exports.down = async function (knex) {
