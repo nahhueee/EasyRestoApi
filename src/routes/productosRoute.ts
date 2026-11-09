@@ -1,5 +1,6 @@
 import { prodRepository } from '../data/productosRepository';
 import { UsuariosRepo } from '../data/usuariosRepository';
+import { movimientosRepository } from '../data/productosMovimientosRepository';
 import {Router, Request, Response} from 'express';
 import { AppError } from '../log/AppError';
 import { CodigoError } from '../log/CodigosError';
@@ -31,6 +32,7 @@ router.post('/agregar', async (req:Request, res:Response, next) => {
         res.json(await prodRepository.Agregar(req.body, (req as any).contexto));
 
     } catch(error:any){
+        if(error instanceof AppError) return next(error); //validaciones del repository (400)
         next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar agregar el producto.", 500, { modulo: 'productosRoute.agregar' }, error));
     }
 });
@@ -40,6 +42,7 @@ router.put('/modificar', async (req:Request, res:Response, next) => {
         res.json(await prodRepository.Modificar(req.body, (req as any).contexto));
 
     } catch(error:any){
+        if(error instanceof AppError) return next(error); //validaciones del repository (400)
         next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar modificar el producto.", 500, { modulo: 'productosRoute.modificar' }, error));
     }
 });
@@ -138,6 +141,43 @@ router.get('/precios/historial/:idPrecio', async (req:Request, res:Response, nex
 
     } catch(error:any){
         next(new AppError(CodigoError.INTERNAL_ERROR, "Error al obtener el historial del precio nro " + req.params.idPrecio + ".", 500, { modulo: 'productosRoute.precios-historial' }, error));
+    }
+});
+//#endregion
+
+//#region STOCK
+router.post('/:id/ajuste-stock', async (req:Request, res:Response, next) => {
+    try{
+        // Solo administrador, igual que el ajuste masivo de precios: tocar el stock a
+        // mano es tan sensible como tocar los precios. Enforcement server-side.
+        const contexto = (req as any).contexto;
+        const esAdministrador = await UsuariosRepo.EsAdministrador(contexto?.idUsuario ?? null);
+        if (!esAdministrador) return res.status(403).send("No tiene permisos para realizar esta acción.");
+
+        const idProducto = Number(req.params.id);
+        if (!Number.isInteger(idProducto)) throw new AppError(CodigoError.VALIDACION, "Producto inválido.", 400);
+
+        res.json(await movimientosRepository.AjustarStock(idProducto, req.body, contexto));
+
+    } catch(error:any){
+        if(error instanceof AppError) return next(error);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al ajustar el stock del producto nro " + req.params.id + ".", 500, { modulo: 'productosRoute.ajuste-stock' }, error));
+    }
+});
+
+router.get('/:id/movimientos', async (req:Request, res:Response, next) => {
+    try{
+        const idProducto = Number(req.params.id);
+        if (!Number.isInteger(idProducto)) throw new AppError(CodigoError.VALIDACION, "Producto inválido.", 400);
+
+        const limiteCrudo = Number(req.query.limite);
+        const limite = Number.isInteger(limiteCrudo) && limiteCrudo > 0 ? Math.min(limiteCrudo, 50) : 4;
+
+        res.json(await movimientosRepository.ObtenerUltimos(idProducto, limite));
+
+    } catch(error:any){
+        if(error instanceof AppError) return next(error);
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al obtener los movimientos del producto nro " + req.params.id + ".", 500, { modulo: 'productosRoute.movimientos' }, error));
     }
 });
 //#endregion

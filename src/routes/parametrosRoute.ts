@@ -73,6 +73,7 @@ router.post('/actualizar-impresion', async (req:Request, res:Response, next) => 
         res.json(await ParametrosRepo.ActualizarImpresion(req.body));
 
     } catch(error:any){
+        if(error instanceof AppError) return next(error); //validación de destinos (400)
         next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar guardar parametros de impresion.", 500, { modulo: 'parametrosRoute.actualizar-impresion' }, error));
     }
 });

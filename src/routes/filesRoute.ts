@@ -37,27 +37,30 @@ router.post('/imprimir-pdf', async (req: Request, res: Response, next) => {
     };
 
     if (tipoImpresion === 'comanda') {
-      // Primera comanda: elaborado
-      const comandaElaborado = await ComandaServ.GenerarComandaPDF(
+      // El reparto entre comandas lo decide el backend (sector del producto en la base +
+      // destinos configurados). Ver ComandaServ.PlanificarComandas.
+      const plan = await ComandaServ.PlanificarComandas(pedido, parametrosImpresion);
+
+      // Comanda principal: se imprime siempre (aunque quede vacía), igual que antes
+      const comandaPrincipal = await ComandaServ.GenerarComandaPDF(
         pedido,
         parametrosImpresion,
-        'elaborado'
+        plan.principal,
+        { tieneComandaBarra: plan.barra != null }
       );
 
-      await imprimirPDF(comandaElaborado);
+      await imprimirPDF(comandaPrincipal);
 
-      // Segunda comanda: terciarizado (si aplica)
-      if (parametrosImpresion.comandaDoble === 1) {
-        const filas = pedido.detalles!.filter(item => item.tipoProd == 'terciarizado' || item.producto?.includes("PROMO"));
-        if (filas.length > 0) {
-          const comandaTerciarizado = await ComandaServ.GenerarComandaPDF(
-            pedido,
-            parametrosImpresion,
-            'terciarizado'
-          );
+      // Comanda de barra: solo si hay algo para la barra
+      if (plan.barra) {
+        const comandaBarra = await ComandaServ.GenerarComandaPDF(
+          pedido,
+          parametrosImpresion,
+          plan.barra,
+          { titulo: 'COMANDA BARRA' }
+        );
 
-          await imprimirPDF(comandaTerciarizado);
-        }
+        await imprimirPDF(comandaBarra);
       }
 
     } else {
@@ -126,7 +129,9 @@ router.post('/ver-resumen', async (req: Request, res: Response, next) => {
 router.post('/ver-comanda', async (req: Request, res: Response, next) => {
   try {
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
-    const pdfBuffer = await ComandaServ.GenerarComandaPDF(req.body, parametrosImpresion);
+    // Muestra la comanda principal, armada igual que al imprimir
+    const plan = await ComandaServ.PlanificarComandas(req.body, parametrosImpresion);
+    const pdfBuffer = await ComandaServ.GenerarComandaPDF(req.body, parametrosImpresion, plan.principal, { tieneComandaBarra: plan.barra != null });
 
     // Devolver el PDF
     res.setHeader('Content-Type', 'application/pdf');

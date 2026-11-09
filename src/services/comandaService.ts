@@ -2,6 +2,7 @@ import path from "path";
 import { ObjComanda } from "../models/ObjComanda";
 import { Pedido } from "../models/Pedido";
 import PdfPrinter from 'pdfmake';
+import { prodRepository } from "../data/productosRepository";
 
 const fonts = {
   Roboto: {
@@ -14,9 +15,52 @@ const fonts = {
 
 const printer = new PdfPrinter(fonts);
 
+type DestinoComanda = 'principal' | 'barra' | 'ninguna';
+
+export interface PlanComandas {
+    principal: any[];
+    barra: any[] | null; // null = no se imprime comanda de barra para este pedido
+}
+
 class ComandaService {
-    async GenerarComandaPDF(pedido, parametrosImpresion, tipo = "elaborado"): Promise<Buffer> {
-        const comanda = this.GenerarDatosComunes(pedido, tipo);
+    // Reparte los ítems del pedido entre la comanda principal y la de barra.
+    // El sector sale de la base (productos.sector), no del payload: así EasyRestoMobile
+    // sin actualizar respeta lo configurado. Ver handoff_rework_productos_comandas.md, PR2 §2.4.
+    async PlanificarComandas(pedido, parametrosImpresion): Promise<PlanComandas> {
+        const detalles:any[] = (pedido.detalles ?? []).filter(item => item.quitado == false);
+
+        const ids = [...new Set<number>(detalles.map(item => item.idProducto).filter(id => id != null))];
+        const sectores = await prodRepository.ObtenerSectores(ids);
+
+        const destinoBarra:DestinoComanda = parametrosImpresion.destinoBarra ?? 'ninguna';
+        const destinoSinPrep:DestinoComanda = parametrosImpresion.destinoSinPrep ?? 'ninguna';
+        const haySalidaBarra = destinoBarra === 'barra' || destinoSinPrep === 'barra';
+
+        const principal:any[] = [];
+        const barra:any[] = [];
+
+        for (const item of detalles) {
+            // Producto borrado físicamente: no está en la base, se cae al tipo que mandó el cliente
+            const sector = sectores.get(item.idProducto) ?? (item.tipoProd === 'terciarizado' ? 'barra' : 'cocina');
+            const destino:DestinoComanda = sector === 'cocina' ? 'principal'
+                                         : sector === 'barra' ? destinoBarra
+                                         : destinoSinPrep;
+
+            //TODO
+            //TEMPORAL - Buscar la forma de estandarizar esto con las promociones
+            //(regla PROMO sin cambios: sale en la principal y, si existe comanda de barra, también en esa)
+            const esPromo = item.producto?.includes("PROMO");
+
+            if(destino === 'principal' || esPromo) principal.push(item);
+            if(destino === 'barra' || (esPromo && haySalidaBarra)) barra.push(item);
+        }
+
+        return { principal, barra: barra.length > 0 ? barra : null };
+    }
+
+    // `detalles`: ya repartidos por PlanificarComandas para esta comanda.
+    async GenerarComandaPDF(pedido, parametrosImpresion, detalles:any[], opciones:{ titulo?:string, tieneComandaBarra?:boolean } = {}): Promise<Buffer> {
+        const comanda = this.GenerarDatosComunes(pedido, detalles, opciones);
 
         comanda.papel = parametrosImpresion.papel;
         comanda.margenDer = parametrosImpresion.margenDer;
@@ -43,7 +87,7 @@ class ComandaService {
     }
 
     //Genera los datos comunes del documento y la estructura de la tabla
-    private GenerarDatosComunes(pedido:Pedido, tipo:string = "elaborado"): ObjComanda {
+    private GenerarDatosComunes(pedido:Pedido, detalles:any[], opciones:{ titulo?:string, tieneComandaBarra?:boolean }): ObjComanda {
         let comanda = new ObjComanda();
 
         comanda.nroPedido = pedido.id!;
@@ -56,9 +100,9 @@ class ComandaService {
         comanda.observacion = pedido.obs!;
         comanda.horaPedido = pedido.hora;
 
-        // Aviso en la comanda de elaborados: el pedido también tiene bebidas (van en otra comanda)
-        comanda.tieneBebidas = tipo === "elaborado"
-            && pedido.detalles!.some(item => item.tipoProd == "terciarizado" && item.quitado == false);
+        // Título (comanda de barra) y aviso en la principal: tieneComandaBarra solo es true si de verdad se imprime una comanda de barra
+        comanda.titulo = opciones.titulo;
+        comanda.tieneComandaBarra = opciones.tieneComandaBarra ?? false;
 
         const fecha = new Date(pedido.fecha!);
         comanda.fechaPedido = fecha.toLocaleDateString('es-ES', {
@@ -77,10 +121,7 @@ class ComandaService {
         ]
         ];
 
-        //TODO
-        //TEMPORAL - Buscar la forma de estandarizar esto con las promociones
-        pedido.detalles!.filter(item => (item.tipoProd == tipo || item.producto?.includes("PROMO")) && item.quitado == false)
-        .forEach(item => {
+        detalles.forEach(item => {
 
             // Fila principal
             comanda.filasTabla?.push([
@@ -116,6 +157,10 @@ class ComandaService {
         },
         pageMargins: [comanda.margenIzq, 0, comanda.margenDer, 0],
         content: [
+            ...(comanda.titulo ? [
+                { text: comanda.titulo, alignment: 'center', style: 'titulo' }
+            ] : []),
+
             { text: comanda.fechaPedido + " " +  comanda.horaPedido, alignment:"center", style:'fecha' },
 
             ...(comanda.tipoPedidoId !== 1 ? [
@@ -188,8 +233,8 @@ class ComandaService {
             style: 'tableStyle' // Aplicar el estilo a la tabla
             },
 
-            ...(comanda.tieneBebidas ? [
-                { text: 'Este pedido también incluye bebidas', style: 'avisoBebidas', alignment: 'center' }
+            ...(comanda.tieneComandaBarra ? [
+                { text: 'También hay pedido en BARRA', style: 'avisoBarra', alignment: 'center' }
             ] : []),
 
         ],
@@ -222,7 +267,7 @@ class ComandaService {
             fontSize: 10, // Cambiar el tamaño de letra de la tabla
             margin: [0, 0, 0, 3]
             },
-            avisoBebidas: {
+            avisoBarra: {
             fontSize: 9,
             bold: true,
             italics: true,
@@ -240,6 +285,10 @@ class ComandaService {
         },
         pageMargins: [comanda.margenIzq, 0, comanda.margenDer, 0],
         content: [
+            ...(comanda.titulo ? [
+                { text: comanda.titulo, alignment: 'center', style: 'titulo' }
+            ] : []),
+
             { text: comanda.fechaPedido + " " +  comanda.horaPedido, alignment:"center", style:'fecha' },
 
             ...(comanda.tipoPedidoId !== 1 ? [
@@ -312,8 +361,8 @@ class ComandaService {
             style: 'tableStyle' // Aplicar el estilo a la tabla
             },
 
-            ...(comanda.tieneBebidas ? [
-                { text: 'Este pedido también incluye bebidas', style: 'avisoBebidas', alignment: 'center' }
+            ...(comanda.tieneComandaBarra ? [
+                { text: 'También hay pedido en BARRA', style: 'avisoBarra', alignment: 'center' }
             ] : []),
 
         ],
@@ -346,7 +395,7 @@ class ComandaService {
             fontSize: 11, // Cambiar el tamaño de letra de la tabla
             margin: [0, 0, 0, 3]
             },
-            avisoBebidas: {
+            avisoBarra: {
             fontSize: 10,
             bold: true,
             italics: true,

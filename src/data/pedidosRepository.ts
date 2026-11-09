@@ -314,12 +314,12 @@ class PedidosRepository{
                 await InsertFacturaPedido(connection, pedido.factura);
             }  
             
-            //Actualizamos inventario
+            //Actualizamos inventario. Ya no depende de `tipoProd` del payload: el filtro
+            //(controlaStock = 1) se resuelve en la base, leyendo el producto real.
             for (const element of  pedido.detalles!) {
                 const signo = pedido.finalizado ? "-" : "+";
 
-                if(element.tipoProd == "terciarizado")
-                    await ActualizarInventario(connection, element, signo)
+                await ActualizarInventario(connection, element, signo)
             };
 
             //Mandamos la transaccion
@@ -610,8 +610,8 @@ async function InsertDetallePedido(connection, detalle):Promise<void>{
 
 async function ActualizarInventario(connection, detalle, operacion):Promise<void>{
     try {
-        const consulta = `UPDATE productos SET cantidad = cantidad ${operacion} ? 
-                          WHERE id = ?`;
+        const consulta = `UPDATE productos SET cantidad = IFNULL(cantidad, 0) ${operacion} ? 
+                          WHERE id = ? AND controlaStock = 1`;
 
         const parametros = [detalle.cantidad, detalle.idProducto];
         await connection.query(consulta, parametros);

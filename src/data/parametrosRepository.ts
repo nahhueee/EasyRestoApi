@@ -1,4 +1,8 @@
 import db from '../db/db.config';
+import { AppError } from '../log/AppError';
+import { CodigoError } from '../log/CodigosError';
+
+const DESTINOS_VALIDOS = ['principal', 'barra', 'ninguna'];
 
 class ParametrosRepository{
 
@@ -84,6 +88,20 @@ class ParametrosRepository{
   async ActualizarImpresion(data:any): Promise<string>{
     const connection = await db.getConnection();
     try {
+        // Destinos de comanda. Compatibilidad con la pantalla vieja de Preferencias (hasta PR5):
+        // solo manda `comandaDoble`, que se traduce a destinoBarra; destinoSinPrep no se toca.
+        const [filasActual]:any = await connection.query("SELECT destinoBarra, destinoSinPrep FROM parametros_impresion");
+        const actual = filasActual[0];
+
+        const destinoBarra = data.destinoBarra ?? ((data.comandaDoble === 1 || data.comandaDoble === true) ? 'barra' : 'ninguna');
+        const destinoSinPrep = data.destinoSinPrep ?? actual?.destinoSinPrep ?? 'ninguna';
+
+        if(!DESTINOS_VALIDOS.includes(destinoBarra) || !DESTINOS_VALIDOS.includes(destinoSinPrep))
+            throw new AppError(CodigoError.VALIDACION, "Destino de comanda inválido.", 400);
+
+        // `comandaDoble` se sigue escribiendo, derivado, para que un rollback de código siga andando
+        const comandaDoble = (destinoBarra === 'barra' || destinoSinPrep === 'barra') ? 1 : 0;
+
         const consulta = `UPDATE parametros_impresion
                           SET
                           impresora = ?,
@@ -93,9 +111,11 @@ class ParametrosRepository{
                           nomLocal = ?,
                           desLocal = ?,
                           dirLocal = ?,
+                          destinoBarra = ?,
+                          destinoSinPrep = ?,
                           comandaDoble = ?`;
 
-        const parametros = [data.impresora, data.papel, data.margenIzq, data.margenDer, data.nomLocal, data.desLocal, data.dirLocal, data.comandaDoble];
+        const parametros = [data.impresora, data.papel, data.margenIzq, data.margenDer, data.nomLocal, data.desLocal, data.dirLocal, destinoBarra, destinoSinPrep, comandaDoble];
         
         await connection.query(consulta, parametros);
         return "OK";

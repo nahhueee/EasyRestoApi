@@ -8,10 +8,54 @@ import { Producto } from '../models/Producto';
 import { ListaPrecio } from '../models/ListaPrecio';
 import { eventosRepository } from './eventosRepository';
 import { query } from 'express';
+import { AppError } from '../log/AppError';
+import { CodigoError } from '../log/CodigosError';
+import { registrarMovimiento } from './productosMovimientosRepository';
 
 // Columnas habilitadas para ORDER BY dinámico (whitelist). filtros.orden llega
 // del cliente: no se puede concatenar directo a la query (ver ObtenerQuery).
 const COLUMNAS_ORDEN_VALIDAS = ['id', 'nombre', 'idCategoria', 'cantidad'];
+
+const SECTORES_VALIDOS = ['cocina', 'barra', 'ninguno'];
+
+// El backend es quien decide `sector`, `controlaStock` y `tipo` de un producto
+// (handoff_rework_productos_comandas.md, PR2). `tipo` se deriva de `sector` y se
+// ignora el del payload: sigue existiendo solo por expand-contract.
+// Si el payload no trae `sector` (front viejo, o rollback de código) se deriva de
+// `tipo`: elaborado -> cocina/sin stock, terciarizado -> barra/con stock.
+function resolverClasificacion(data:any){
+    const legacy = data.sector === undefined || data.sector === null;
+
+    let sector:string;
+    let controlaStock:boolean;
+
+    if(legacy){
+        const esTerciarizado = data.tipo === 'terciarizado';
+        sector = esTerciarizado ? 'barra' : 'cocina';
+        controlaStock = esTerciarizado;
+    } else {
+        if(!SECTORES_VALIDOS.includes(data.sector))
+            throw new AppError(CodigoError.VALIDACION, "Sector inválido: " + data.sector + ".", 400);
+        sector = data.sector;
+        controlaStock = data.controlaStock === true || data.controlaStock === 1;
+    }
+
+    const tipo:'elaborado' | 'terciarizado' = sector === 'cocina' ? 'elaborado' : 'terciarizado';
+    return { sector, controlaStock, tipo, legacy };
+}
+
+// Stock con el que nace un producto. Un front viejo manda el stock en `cantidad`
+// (no conoce `stockInicial`): se respeta para no perder el dato al crear.
+function resolverStockInicial(data:any, clasificacion:{ controlaStock:boolean, legacy:boolean }):number{
+    if(!clasificacion.controlaStock) return 0;
+
+    const crudo = data.stockInicial ?? (clasificacion.legacy ? data.cantidad : 0) ?? 0;
+    const stock = Number(crudo);
+    if(!Number.isInteger(stock) || stock < 0)
+        throw new AppError(CodigoError.VALIDACION, "El stock inicial debe ser un número entero mayor o igual a 0.", 400);
+
+    return stock;
+}
 
 // Quién y desde dónde originó la escritura, para auditar en `eventos`. Hasta
 // que exista el token de Fase 4 viaja como headers (x-usuario-id / x-puesto),
@@ -87,6 +131,28 @@ class ProductoRepository{
     }
     //#endregion
 
+    // Sector de cada producto, para decidir a qué comanda va cada ítem sin confiar
+    // en lo que mande el cliente. Un producto borrado físicamente no aparece en el mapa.
+    async ObtenerSectores(ids:number[]): Promise<Map<number, string>>{
+        const mapa = new Map<number, string>();
+        if(ids.length === 0) return mapa;
+
+        const connection = await db.getConnection();
+
+        try {
+            const [rows]:any = await connection.query("SELECT id, sector FROM productos WHERE id IN (?)", [ids]);
+            for (const row of rows) {
+                mapa.set(row['id'], row['sector']);
+            }
+            return mapa;
+
+        } catch (error:any) {
+            throw error;
+        } finally{
+            connection.release();
+        }
+    }
+
     //#region ABM
     async Agregar(data:Producto, contexto:ContextoAuditoria): Promise<string>{
         const connection = await db.getConnection();
@@ -100,16 +166,21 @@ class ProductoRepository{
             await connection.beginTransaction();
 
             //#region INSERTAR PRODUCTO
-            const consulta = `INSERT INTO productos(idCategoria,nombre,tipo,imagen,cantidad,descripcion)
-                              VALUES(?,?,?,?,?,?)`;
+            const clasificacion = resolverClasificacion(data);
+            const stockInicial = resolverStockInicial(data, clasificacion);
+
+            const consulta = `INSERT INTO productos(idCategoria,nombre,tipo,sector,controlaStock,imagen,cantidad,descripcion)
+                              VALUES(?,?,?,?,?,?,?,?)`;
 
             const parametros =
                             [
                                 data.categoria?.id,
                                 data.nombre!.toUpperCase(),
-                                data.tipo,
+                                clasificacion.tipo,
+                                clasificacion.sector,
+                                clasificacion.controlaStock ? 1 : 0,
                                 data.imagen,
-                                data.cantidad,
+                                stockInicial,
                                 data.descripcion
                             ];
 
@@ -120,6 +191,18 @@ class ProductoRepository{
             // y los precios quedaban insertados contra un idProducto equivocado.
             const [resultado]:any = await connection.query(consulta, parametros);
             data.id = resultado.insertId;
+
+            //Stock inicial: queda en el libro de stock, en la misma transaccion
+            if(clasificacion.controlaStock){
+                await registrarMovimiento(connection, {
+                    idProducto: data.id,
+                    motivo: 'INICIAL',
+                    cantidadDelta: stockInicial,
+                    cantidadResultante: stockInicial,
+                    observacion: 'Stock inicial',
+                    contexto
+                });
+            }
             //#endregion
 
             //Insertamos los precios por el punto único de escritura (audita PRECIO_CREAR)
@@ -166,12 +249,19 @@ class ProductoRepository{
             await connection.beginTransaction();
 
             //#region MODIFICAR PRODUCTO.
+            // `cantidad` NO se escribe desde el formulario: el stock cambia solo por
+            // ventas y por ajustes auditados (productos_movimientos). Antes, guardar un
+            // producto pisaba el stock con el valor que tenia el formulario al abrirlo y
+            // las ventas hechas mientras tanto desaparecian.
+            const clasificacion = resolverClasificacion(data);
+
             const consulta = `UPDATE productos SET
                                 idCategoria = ?,
                                 nombre = ?,
                                 tipo = ?,
+                                sector = ?,
+                                controlaStock = ?,
                                 imagen = ?,
-                                cantidad = ?,
                                 descripcion = ?
                                WHERE id = ?`;
 
@@ -179,9 +269,10 @@ class ProductoRepository{
                             [
                                 data.categoria?.id,
                                 data.nombre!.toUpperCase(),
-                                data.tipo,
+                                clasificacion.tipo,
+                                clasificacion.sector,
+                                clasificacion.controlaStock ? 1 : 0,
                                 data.imagen,
-                                data.cantidad,
                                 data.descripcion,
                                 data.id
                             ];
