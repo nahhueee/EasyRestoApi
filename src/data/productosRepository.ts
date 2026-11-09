@@ -14,7 +14,7 @@ import { registrarMovimiento } from './productosMovimientosRepository';
 
 // Columnas habilitadas para ORDER BY dinámico (whitelist). filtros.orden llega
 // del cliente: no se puede concatenar directo a la query (ver ObtenerQuery).
-const COLUMNAS_ORDEN_VALIDAS = ['id', 'nombre', 'idCategoria', 'cantidad'];
+const COLUMNAS_ORDEN_VALIDAS = ['id', 'nombre', 'idCategoria', 'cantidad', 'sector'];
 
 const SECTORES_VALIDOS = ['cocina', 'barra', 'ninguno'];
 
@@ -602,7 +602,8 @@ function ArmarObjeto(row, mapaPrecios:Map<number, ProductoPrecio[]>, mapaAdicion
         cantidad: row['cantidad'],
         categoria: new Categoria({
             id: row['idCategoria'],
-            nombre: row['categoria']
+            nombre: row['categoria'],
+            icono: row['categoriaIcono']
         })
     });
 
@@ -642,6 +643,17 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{sql:string, pa
                 parametros.push(filtros.tipo);
             }
 
+            // Filtros combinables entre sí y con rubro/búsqueda (listado único de productos).
+            // sector se valida contra la whitelist: un valor desconocido se ignora, no llega a la query.
+            if (filtros.sector != null && SECTORES_VALIDOS.includes(filtros.sector)){
+                filtro += " AND p.sector = ? ";
+                parametros.push(filtros.sector);
+            }
+
+            if (filtros.controlaStock === true || filtros.controlaStock === 1 || filtros.controlaStock === '1' || filtros.controlaStock === 'true'){
+                filtro += " AND p.controlaStock = 1 ";
+            }
+
             if (filtros.categoria != null && filtros.categoria != ""){
                 filtro += " AND p.idCategoria = ? ";
                 parametros.push(filtros.categoria);
@@ -677,7 +689,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{sql:string, pa
 
         //Arma la Query con el paginado y los filtros correspondientes
         const sql = count +
-                " SELECT p.*, COALESCE(c.nombre, 'ELIMINADO') categoria " +
+                " SELECT p.*, COALESCE(c.nombre, 'ELIMINADO') categoria, c.icono categoriaIcono " +
                 " FROM productos p " +
                 " INNER JOIN categorias c ON c.id = p.idCategoria " +
                 " WHERE 1 = 1 " +
