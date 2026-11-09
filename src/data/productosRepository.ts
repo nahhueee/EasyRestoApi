@@ -504,6 +504,8 @@ function ArmarObjeto(row, mapaPrecios:Map<number, ProductoPrecio[]>, mapaAdicion
         id: row['id'],
         nombre: row['nombre'],
         tipo: row['tipo'],
+        sector: row['sector'],
+        controlaStock: row['controlaStock'] == 1,
         imagen: row['imagen'],
         descripcion: row['descripcion'],
         cantidad: row['cantidad'],

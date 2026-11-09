@@ -6,6 +6,8 @@ export class Producto {
     id : number = 0;
     nombre : string = "";
     tipo?: "elaborado" | "terciarizado";
+    sector?: "cocina" | "barra" | "ninguno";
+    controlaStock?: boolean;
     categoria? : Categoria;
     imagen : string = "";
     cantidad: number = 0; 
@@ -19,6 +21,8 @@ export class Producto {
             this.id = data.id;
             this.nombre = data.nombre;
             this.tipo = data.tipo;
+            this.sector = data.sector;
+            this.controlaStock = data.controlaStock;
             this.categoria = new Categoria(data.categoria);
             this.imagen = data.imagen;
             this.cantidad = data.cantidad;
