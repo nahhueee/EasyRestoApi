@@ -13,6 +13,25 @@ const router : Router  = Router();
 //#region PDFS
 const printer = require('pdf-to-printer');
 const fs = require('fs');
+const { execFile } = require('child_process');
+
+// pdf-to-printer resuelve apenas el trabajo entra al spooler, aunque la impresora esté apagada.
+// Antes de imprimir consultamos si Windows la marca fuera de línea. Si la consulta falla no bloqueamos la impresión.
+const verificarImpresoraEnLinea = (nombre: string | undefined): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const filtro = nombre ? `Name='${nombre.replace(/'/g, "''")}'` : 'Default=True';
+    const cmd = `$p = Get-CimInstance Win32_Printer -Filter "${filtro.replace(/"/g, '`"')}" | Select-Object -First 1; if($p){ "$($p.WorkOffline)|$($p.PrinterStatus)|$($p.Name)" }`;
+    execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', cmd], { timeout: 8000, windowsHide: true }, (err: any, stdout: string) => {
+      if (err || !stdout || !stdout.trim()) return resolve();
+      const [workOffline, status, name] = stdout.trim().split('|');
+      // PrinterStatus 7 = Offline
+      if (workOffline.toLowerCase() === 'true' || status === '7') {
+        return reject(new Error(`La impresora "${name}" está fuera de línea o apagada.`));
+      }
+      resolve();
+    });
+  });
+};
 
 router.post('/imprimir-pdf', async (req: Request, res: Response, next) => {
   try {
@@ -22,6 +41,8 @@ router.post('/imprimir-pdf', async (req: Request, res: Response, next) => {
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
 
     const imprimirPDF = async (pdfBuffer: Buffer) => {
+      await verificarImpresoraEnLinea(parametrosImpresion.impresora);
+
       const tempName = `impresion_${uuid()}.pdf`;
       const tempPath = path.join(__dirname, '..', 'temp', tempName);
 
@@ -88,6 +109,8 @@ router.post('/imprimir-resumen', async (req: Request, res: Response, next) => {
 
     const pdfBuffer = await ResumenServ.GenerarResumenPDF(resumen, parametrosImpresion);
     
+    await verificarImpresoraEnLinea(parametrosImpresion.impresora);
+
     //Crear archivo temporal
     const tempName = `impresion_${uuid()}.pdf`;
     const tempPath = path.join(__dirname, '..', 'temp', tempName);

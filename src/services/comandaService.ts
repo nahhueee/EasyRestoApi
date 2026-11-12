@@ -200,17 +200,19 @@ class ComandaService {
                 }
             ]),
 
-            {
+            // Observación general: solo si el pedido la tiene (antes salía siempre un "* " vacío)
+            ...(comanda.observacion && comanda.observacion.trim() != '' ? [{
             text: [
                 { text: '* ', bold: true },
                 { text: comanda.observacion }
             ],
             style: 'observacion'
-            },
+            }] : []),
 
             {
             table: {
-                widths: ['auto', '*'],
+                // Columna C fija: con 'auto' las notas (colSpan: 2) con texto largo la ensanchaban
+                widths: [16, '*'],
                 body: comanda.filasTabla
             },
             layout: {
@@ -227,10 +229,15 @@ class ComandaService {
                 hLineColor: function (i, node) {
                 return i === 1 ? 'black' : '#CCCCCC';
                 },
+                // Columna C más angosta: padding lateral reducido para que entren 2 cifras (o un decimal)
+                paddingLeft: function (i, node) { return i === 0 ? 1 : 3; },
+                paddingRight: function (i, node) { return i === 0 ? 0 : 4; },
                 paddingTop: function (i, node) { return 2; },
                 paddingBottom: function (i, node) { return 2; },
             },
-            style: 'tableStyle' // Aplicar el estilo a la tabla
+            style: 'tableStyle', // Aplicar el estilo a la tabla
+            // Sin observación general no hay bloque (con su margen) entre los datos y la tabla: separamos la tabla
+            margin: [0, comanda.observacion && comanda.observacion.trim() != '' ? 0 : 6, 0, 3]
             },
 
             ...(comanda.tieneComandaBarra ? [
@@ -328,17 +335,19 @@ class ComandaService {
                 }
             ]),
 
-            {
+            // Observación general: solo si el pedido la tiene (antes salía siempre un "* " vacío)
+            ...(comanda.observacion && comanda.observacion.trim() != '' ? [{
             text: [
                 { text: '* ', bold: true },
                 { text: comanda.observacion }
             ],
             style: 'observacion'
-            },
+            }] : []),
 
             {
             table: {
-                widths: ['auto', '*'],
+                // Columna C fija: con 'auto' las notas (colSpan: 2) con texto largo la ensanchaban
+                widths: [16, '*'],
                 body: comanda.filasTabla
             },
             layout: {
@@ -355,10 +364,15 @@ class ComandaService {
                 hLineColor: function (i, node) {
                 return i === 1 ? 'black' : '#CCCCCC';
                 },
+                // Columna C más angosta: padding lateral reducido para que entren 2 cifras (o un decimal)
+                paddingLeft: function (i, node) { return i === 0 ? 1 : 3; },
+                paddingRight: function (i, node) { return i === 0 ? 0 : 4; },
                 paddingTop: function (i, node) { return 2; },
                 paddingBottom: function (i, node) { return 2; },
             },
-            style: 'tableStyle' // Aplicar el estilo a la tabla
+            style: 'tableStyle', // Aplicar el estilo a la tabla
+            // Sin observación general no hay bloque (con su margen) entre los datos y la tabla: separamos la tabla
+            margin: [0, comanda.observacion && comanda.observacion.trim() != '' ? 0 : 6, 0, 3]
             },
 
             ...(comanda.tieneComandaBarra ? [
