@@ -526,8 +526,10 @@ async function UpdatePedido(connection, pedido):Promise<void>{
 //#region DETALLE PEDIDOS
 async function ObtenerDetallePedido(connection, idPedido:number){
     try {
+        // LEFT JOIN: las líneas "varios" (idProducto NULL) y las de productos ya borrados deben volver igual;
+        // con INNER JOIN desaparecían al reabrir el pedido y se perdían del todo en la primera modificación.
         const consulta = " SELECT pd.*, p.tipo FROM pedidos_detalle pd " +
-                         " INNER JOIN productos p ON p.id = pd.idProducto " +
+                         " LEFT JOIN productos p ON p.id = pd.idProducto " +
                          " WHERE pd.idPedido = ?";
 
         const [rows] = await connection.query(consulta, [idPedido]);
