@@ -15,6 +15,7 @@ export class ObjComanda {
     doble:boolean = false;
     tieneComandaBarra:boolean = false;
     titulo?:string;
+    nroTicketGrande:boolean = false;
 
     constructor(data?: any) {
         if (data) {

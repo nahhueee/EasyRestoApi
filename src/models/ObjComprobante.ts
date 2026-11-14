@@ -7,6 +7,8 @@ export class ObjComprobante {
     dirLocal?:string;
     fechaPedido?:string;
     horaPedido?:string;
+    nroTicket?:number;
+    nroTicketGrande:boolean = false;
     mesa?:string;
     responsable?:string;
     cliente?:string;
@@ -31,6 +33,7 @@ export class ObjComprobante {
           this.dirLocal = data.dirLocal;
           this.fechaPedido = data.fechaPedido;
           this.horaPedido = data.horaPedido;
+          this.nroTicket = data.nroTicket;
           this.descuento = data.descuento;
           this.tipoRecDes = data.tipoRecDes;
           this.mesa = data.mesa;

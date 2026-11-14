@@ -113,9 +113,12 @@ class ParametrosRepository{
                           dirLocal = ?,
                           destinoBarra = ?,
                           destinoSinPrep = ?,
-                          comandaDoble = ?`;
+                          comandaDoble = ?,
+                          nroTicketGrande = COALESCE(?, nroTicketGrande)`;
 
-        const parametros = [data.impresora, data.papel, data.margenIzq, data.margenDer, data.nomLocal, data.desLocal, data.dirLocal, destinoBarra, destinoSinPrep, comandaDoble];
+        const parametros = [data.impresora, data.papel, data.margenIzq, data.margenDer, data.nomLocal, data.desLocal, data.dirLocal, destinoBarra, destinoSinPrep, comandaDoble,
+                            // undefined = un front viejo que no lo manda: se conserva el valor actual
+                            data.nroTicketGrande === undefined ? null : (data.nroTicketGrande ? 1 : 0)];
         
         await connection.query(consulta, parametros);
         return "OK";

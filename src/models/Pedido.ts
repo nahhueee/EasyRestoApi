@@ -8,6 +8,7 @@ import { Usuario } from "./Usuario";
 
 export class Pedido {
     id? : number;
+    nroTicket? : number;
     idCaja? : number;
     tipo?: TipoPedido;
     fecha? : Date;
@@ -31,6 +32,7 @@ export class Pedido {
     constructor(data?: any) {
       if (data) {
         this.id = data.id;
+        this.nroTicket = data.nroTicket;
         this.fecha = data.fecha;
         this.hora = data.hora;
         this.total = data.total;

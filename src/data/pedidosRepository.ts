@@ -135,6 +135,7 @@ class PedidosRepository{
         let pedido:Pedido = new Pedido();
         pedido.id = row['id'];
         pedido.idCaja = row['idCaja'];
+        pedido.nroTicket = row['nroTicket'];
         pedido.fecha = row['fecha'];
         pedido.hora = row['hora'];
         pedido.obs = row['obs'];
@@ -186,9 +187,6 @@ class PedidosRepository{
         const connection = await db.getConnection();
 
         try {
-            //Obtenemos el proximo nro de pedido a insertar
-            pedido.id = await ObtenerUltimoPedido(connection);
-
             //Iniciamos una transaccion
             await connection.beginTransaction();
 
@@ -196,8 +194,11 @@ class PedidosRepository{
                 pedido.mesa = {id:0}
             }
 
-            //Insertamos la venta
-            await InsertPedido(connection, pedido);
+            //Numero de ticket corto (reinicia por caja). Salon se identifica por mesa: no consume numeros, asi la secuencia de mostrador no tiene saltos
+            pedido.nroTicket = pedido.tipo?.id === 1 ? undefined : await ObtenerProximoNroTicket(connection, pedido.idCaja ?? 0, moment(pedido.fecha).format('YYYY-MM-DD'));
+
+            //Insertamos la venta. El id real es el del auto-increment (el MAX+1 de arriba puede quedar viejo si dos terminales guardan a la vez)
+            pedido.id = await InsertPedido(connection, pedido);
 
             //Marcamos la mesa como no disponible
             if(pedido.mesa?.id != 0){
@@ -392,6 +393,18 @@ class PedidosRepository{
         }
     }
 
+    // El front imprime con el objeto pedido que tiene en memoria y ahi aun no esta el nroTicket recien asignado.
+    // filesRoute lo completa con este metodo antes de generar comanda o comprobante.
+    async ObtenerNroTicket(idPedido:number): Promise<number | null>{
+        const connection = await db.getConnection();
+        try {
+            const [rows] = await connection.query("SELECT nroTicket FROM pedidos WHERE id = ?", [idPedido]);
+            return rows[0]?.nroTicket ?? null;
+        } finally {
+            connection.release();
+        }
+    }
+
     async ObtenerQRFactura(idVenta:number){
         const connection = await db.getConnection();
 
@@ -448,13 +461,32 @@ async function ObtenerUltimoPedido(connection):Promise<number>{
         throw error; 
     }
 }
-async function InsertPedido(connection, pedido):Promise<void>{
-    try {
-       const consulta = " INSERT INTO pedidos(idCaja,idTipo,idResponsable,cliente,idMesa,fecha,hora,obs,total,finalizado) " +
-                        " VALUES(?,?,?,?,?,?,?,?,?,?) ";
+// Proximo nroTicket: por caja si idCaja > 0; si no hay caja (modo pedidos, en deprecacion) reinicia por dia.
+// No filtra por fechaBaja a proposito: el numero de un pedido eliminado no se reutiliza.
+// Serializa terminales con un mutex sobre una fila que siempre existe (la caja; sin caja, el parametro modoTrabajo). Bloquear el rango de
+// `pedidos` con FOR UPDATE daba gap locks compatibles entre si y deadlock en el primer pedido de una caja vacia.
+// El SELECT de abajo corre despues del lock, asi que ve lo que commiteo la terminal anterior.
+async function ObtenerProximoNroTicket(connection, idCaja:number, fecha:string):Promise<number>{
+    if(idCaja > 0)
+        await connection.query("SELECT id FROM cajas WHERE id = ? FOR UPDATE", [idCaja]);
+    else
+        await connection.query("SELECT clave FROM parametros WHERE clave = 'modoTrabajo' FOR UPDATE");
 
-        const parametros = [pedido.idCaja, pedido.tipo.id, pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.total, 0];
-        await connection.query(consulta, parametros);
+    const consulta = idCaja > 0
+        ? " SELECT COALESCE(MAX(nroTicket),0) + 1 AS prox FROM pedidos WHERE idCaja = ? "
+        : " SELECT COALESCE(MAX(nroTicket),0) + 1 AS prox FROM pedidos WHERE idCaja = 0 AND fecha = ? ";
+    const [rows] = await connection.query(consulta, [idCaja > 0 ? idCaja : fecha]);
+    return Number(rows[0].prox);
+}
+
+async function InsertPedido(connection, pedido):Promise<number>{
+    try {
+       const consulta = " INSERT INTO pedidos(idCaja,idTipo,idResponsable,cliente,idMesa,fecha,hora,obs,total,finalizado,nroTicket) " +
+                        " VALUES(?,?,?,?,?,?,?,?,?,?,?) ";
+
+        const parametros = [pedido.idCaja, pedido.tipo.id, pedido.responsable.id, pedido.cliente.toUpperCase(), pedido.mesa.id, moment(pedido.fecha).format('YYYY-MM-DD'), pedido.hora, pedido.obs, pedido.total, 0, pedido.nroTicket ?? null];
+        const [resultado] = await connection.query(consulta, parametros);
+        return resultado.insertId;
         
     } catch (error) {
         throw error; 

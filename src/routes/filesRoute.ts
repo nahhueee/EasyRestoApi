@@ -7,6 +7,7 @@ import ComprobanteServ from '../services/comprobanteService';
 import ResumenServ from '../services/resumenService';
 import { randomUUID as uuid } from 'crypto';
 import { ParametrosRepo } from '../data/parametrosRepository';
+import { PedidosRepo } from '../data/pedidosRepository';
 const path = require('path');
 const router : Router  = Router();
 
@@ -17,7 +18,8 @@ const { execFile } = require('child_process');
 
 // pdf-to-printer resuelve apenas el trabajo entra al spooler, aunque la impresora esté apagada.
 // Antes de imprimir consultamos si Windows la marca fuera de línea. Si la consulta falla no bloqueamos la impresión.
-// `activo` viene de parametros_impresion.verificarImpresora (0 = no chequear, se manda directo al spooler).
+// `activo` viene de parametros_impresion.verificarImpresora. Por ahora el chequeo está APAGADO por defecto
+// (PowerShell/WMI demoraba 5-7 s en equipos lentos): solo corre si el flag vale 1. Se enciende por SQL para pruebas.
 const verificarImpresoraEnLinea = (nombre: string | undefined, activo: boolean = true): Promise<void> => {
   if (!activo) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -35,16 +37,25 @@ const verificarImpresoraEnLinea = (nombre: string | undefined, activo: boolean =
   });
 };
 
+// El pedido llega desde el front sin el nroTicket si recien se creo: lo leemos de la base para que comanda y
+// comprobante muestren el numero corto y no el id global.
+const completarNroTicket = async (pedido: any) => {
+  if (pedido && pedido.id && pedido.nroTicket == null) {
+    pedido.nroTicket = (await PedidosRepo.ObtenerNroTicket(pedido.id)) ?? undefined;
+  }
+};
+
 router.post('/imprimir-pdf', async (req: Request, res: Response, next) => {
   try {
     const tipoImpresion = req.body.tipoImpresion;
     const pedido = req.body.pedido;
     const tipoComprobante = req.body.tipoComprobante;
+    await completarNroTicket(pedido);
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
 
     // El chequeo de la impresora (PowerShell/WMI) es lento: se lanza ya mismo y corre en paralelo
     // con la generación del PDF. Se espera recién antes de imprimir y se reutiliza para todas las comandas del request.
-    const impresoraEnLinea = verificarImpresoraEnLinea(parametrosImpresion.impresora, parametrosImpresion.verificarImpresora !== 0);
+    const impresoraEnLinea = verificarImpresoraEnLinea(parametrosImpresion.impresora, parametrosImpresion.verificarImpresora === 1);
     impresoraEnLinea.catch(() => {}); // evita unhandledRejection si el PDF falla antes de llegar al await
 
     const imprimirPDF = async (pdfBuffer: Buffer) => {
@@ -115,7 +126,7 @@ router.post('/imprimir-resumen', async (req: Request, res: Response, next) => {
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
 
     // Chequeo de impresora en paralelo con la generación del PDF (ver /imprimir-pdf)
-    const impresoraEnLinea = verificarImpresoraEnLinea(parametrosImpresion.impresora, parametrosImpresion.verificarImpresora !== 0);
+    const impresoraEnLinea = verificarImpresoraEnLinea(parametrosImpresion.impresora, parametrosImpresion.verificarImpresora === 1);
     impresoraEnLinea.catch(() => {});
 
     const pdfBuffer = await ResumenServ.GenerarResumenPDF(resumen, parametrosImpresion);
@@ -162,6 +173,7 @@ router.post('/ver-resumen', async (req: Request, res: Response, next) => {
 
 router.post('/ver-comanda', async (req: Request, res: Response, next) => {
   try {
+    await completarNroTicket(req.body);
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
     // Muestra la comanda principal, armada igual que al imprimir
     const plan = await ComandaServ.PlanificarComandas(req.body, parametrosImpresion);
@@ -179,6 +191,7 @@ router.post('/ver-comanda', async (req: Request, res: Response, next) => {
 
 router.post('/ver-comprobante/:tipoComprobante', async (req: Request, res: Response, next) => {
   try {
+    await completarNroTicket(req.body);
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
     const pdfBuffer = await ComprobanteServ.GenerarComprobantePDF(req.body, parametrosImpresion, req.params.tipoComprobante);
 

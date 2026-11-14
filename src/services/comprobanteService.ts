@@ -22,6 +22,7 @@ class ComprobanteService {
         const comprobante = this.GenerarDatosComunes(pedido, parametrosImpresion.papel);
 
         comprobante.papel = parametrosImpresion.papel;
+        comprobante.nroTicketGrande = parametrosImpresion.nroTicketGrande == 1;
         comprobante.margenDer = parametrosImpresion.margenDer;
         comprobante.margenIzq = parametrosImpresion.margenIzq;
         comprobante.nombreLocal = parametrosImpresion.nomLocal;
@@ -129,6 +130,7 @@ class ComprobanteService {
         let comprobante = new ObjComprobante();
 
         comprobante.horaPedido = pedido.hora;
+        comprobante.nroTicket = pedido.nroTicket ?? pedido.id;
         comprobante.mesa = pedido.mesa?.codigo!;
         comprobante.responsable = pedido.responsable?.nombre!;
         comprobante.cliente = pedido.cliente!;
@@ -215,6 +217,12 @@ class ComprobanteService {
      * una observación cargada junto al recargo/descuento (ver RecargoDescuentoComponent) se
      * muestra debajo en chico/itálica, sutil pero legible.
      */
+    // Numero de ticket grande para cantar/retirar. En Salon el identificador es la mesa, asi que no se imprime.
+    private ArmarBloqueNroTicket(comprobante: ObjComprobante, fontSize: number): any[] {
+        if (!comprobante.nroTicketGrande || comprobante.tipoPedidoId === 1 || comprobante.nroTicket == null) return [];
+        return [{ text: String(comprobante.nroTicket), alignment: 'center', bold: true, fontSize, margin: [0, 2, 0, 4] }];
+    }
+
     private ArmarBloqueTotales(comprobante: ObjComprobante, fontNormal: number, fontTotal: number) {
         const filas: any[] = [];
         const descuento = comprobante.descuento ?? 0;
@@ -281,6 +289,7 @@ class ComprobanteService {
           ] : []),
 
           { text: comprobante.fechaPedido + " " +  comprobante.horaPedido, alignment: 'center', style:'fecha' },
+          ...this.ArmarBloqueNroTicket(comprobante, 22),
 
           ...(comprobante.tipoPedidoId !== 1 ? [
             { text: (comprobante.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'center' }
@@ -386,6 +395,7 @@ class ComprobanteService {
           ] : []),
 
           { text: comprobante.fechaPedido + " " +  comprobante.horaPedido, alignment: 'center', style:'fecha' },
+          ...this.ArmarBloqueNroTicket(comprobante, 28),
 
           ...(comprobante.tipoPedidoId !== 1 ? [
             { text: (comprobante.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'center' }
@@ -579,6 +589,7 @@ class ComprobanteService {
   
           { text: comprobante.nombreLocal?.toUpperCase(), style: 'titulo', alignment: 'center' },
           { text: comprobante.fechaPedido + " " +  comprobante.horaPedido, alignment: 'center', style:'fecha' },
+          ...this.ArmarBloqueNroTicket(comprobante, 22),
   
           { text: datosFactura.condicion, style:'condicion' },
           { text: datosFactura.razon, style:'simple' },
@@ -716,6 +727,7 @@ class ComprobanteService {
   
           { text: comprobante.nombreLocal?.toUpperCase(), style: 'titulo', alignment: 'center' },
           { text: comprobante.fechaPedido + " " +  comprobante.horaPedido, alignment: 'center', style:'fecha' },
+          ...this.ArmarBloqueNroTicket(comprobante, 28),
   
           { text: datosFactura.condicion, style:'condicion' },
           { text: datosFactura.razon, style:'simple' },

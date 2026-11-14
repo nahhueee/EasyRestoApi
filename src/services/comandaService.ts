@@ -65,6 +65,7 @@ class ComandaService {
         comanda.papel = parametrosImpresion.papel;
         comanda.margenDer = parametrosImpresion.margenDer;
         comanda.margenIzq = parametrosImpresion.margenIzq;
+        comanda.nroTicketGrande = parametrosImpresion.nroTicketGrande == 1;
 
         const docDefinition = comanda.papel === '58mm'
             ? this.ArmarComanda58(comanda)
@@ -90,7 +91,7 @@ class ComandaService {
     private GenerarDatosComunes(pedido:Pedido, detalles:any[], opciones:{ titulo?:string, tieneComandaBarra?:boolean }): ObjComanda {
         let comanda = new ObjComanda();
 
-        comanda.nroPedido = pedido.id!;
+        comanda.nroPedido = pedido.nroTicket ?? pedido.id!;
         comanda.mesa = pedido.mesa?.codigo!;
         if(comanda.mesa == "NO SELECCIONADA") comanda.mesa = "";
         comanda.mozo = pedido.responsable?.nombre!;
@@ -167,13 +168,17 @@ class ComandaService {
                 { text: (comanda.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'center' }
             ] : []),
 
-            {
-            text: [
-                { text: 'Nro: ', bold: true },
-                { text: comanda.nroPedido }
-            ],
-            style: 'datos'
-            },
+            ...(comanda.tipoPedidoId !== 1 && comanda.nroTicketGrande ? [
+                { text: String(comanda.nroPedido), style: 'nroTicket', alignment: 'center' }
+            ] : [
+                {
+                text: [
+                    { text: 'Nro: ', bold: true },
+                    { text: comanda.nroPedido }
+                ],
+                style: 'datos'
+                }
+            ]),
 
             ...(comanda.tipoPedidoId === 1 ? [
                 {
@@ -259,6 +264,11 @@ class ComandaService {
             fontSize: 11,
             margin: [3, 0, 0, 0]
             },
+            nroTicket: {
+            fontSize: 28,
+            bold: true,
+            margin: [0, 0, 0, 4]
+            },
             tipoPedido: {
             fontSize: 12,
             bold: true,
@@ -302,13 +312,17 @@ class ComandaService {
                 { text: (comanda.tipoPedido || '').toUpperCase(), style: 'tipoPedido', alignment: 'center' }
             ] : []),
 
-            {
-            text: [
-                { text: 'Nro: ', bold: true },
-                { text: comanda.nroPedido }
-            ],
-            style: 'datos'
-            },
+            ...(comanda.tipoPedidoId !== 1 && comanda.nroTicketGrande ? [
+                { text: String(comanda.nroPedido), style: 'nroTicket', alignment: 'center' }
+            ] : [
+                {
+                text: [
+                    { text: 'Nro: ', bold: true },
+                    { text: comanda.nroPedido }
+                ],
+                style: 'datos'
+                }
+            ]),
 
             ...(comanda.tipoPedidoId === 1 ? [
                 {
@@ -393,6 +407,11 @@ class ComandaService {
             datos: {
             fontSize: 13,
             margin: [3, 0, 0, 0]
+            },
+            nroTicket: {
+            fontSize: 34,
+            bold: true,
+            margin: [0, 0, 0, 4]
             },
             tipoPedido: {
             fontSize: 14,
