@@ -5,7 +5,7 @@ import { upload, fullPath, uniqueName } from '../conf/upload_config'; // Importa
 import ComandaServ from '../services/comandaService';
 import ComprobanteServ from '../services/comprobanteService';
 import ResumenServ from '../services/resumenService';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { ParametrosRepo } from '../data/parametrosRepository';
 const path = require('path');
 const router : Router  = Router();
@@ -17,7 +17,9 @@ const { execFile } = require('child_process');
 
 // pdf-to-printer resuelve apenas el trabajo entra al spooler, aunque la impresora esté apagada.
 // Antes de imprimir consultamos si Windows la marca fuera de línea. Si la consulta falla no bloqueamos la impresión.
-const verificarImpresoraEnLinea = (nombre: string | undefined): Promise<void> => {
+// `activo` viene de parametros_impresion.verificarImpresora (0 = no chequear, se manda directo al spooler).
+const verificarImpresoraEnLinea = (nombre: string | undefined, activo: boolean = true): Promise<void> => {
+  if (!activo) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const filtro = nombre ? `Name='${nombre.replace(/'/g, "''")}'` : 'Default=True';
     const cmd = `$p = Get-CimInstance Win32_Printer -Filter "${filtro.replace(/"/g, '`"')}" | Select-Object -First 1; if($p){ "$($p.WorkOffline)|$($p.PrinterStatus)|$($p.Name)" }`;
@@ -40,8 +42,13 @@ router.post('/imprimir-pdf', async (req: Request, res: Response, next) => {
     const tipoComprobante = req.body.tipoComprobante;
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
 
+    // El chequeo de la impresora (PowerShell/WMI) es lento: se lanza ya mismo y corre en paralelo
+    // con la generación del PDF. Se espera recién antes de imprimir y se reutiliza para todas las comandas del request.
+    const impresoraEnLinea = verificarImpresoraEnLinea(parametrosImpresion.impresora, parametrosImpresion.verificarImpresora !== 0);
+    impresoraEnLinea.catch(() => {}); // evita unhandledRejection si el PDF falla antes de llegar al await
+
     const imprimirPDF = async (pdfBuffer: Buffer) => {
-      await verificarImpresoraEnLinea(parametrosImpresion.impresora);
+      await impresoraEnLinea;
 
       const tempName = `impresion_${uuid()}.pdf`;
       const tempPath = path.join(__dirname, '..', 'temp', tempName);
@@ -107,9 +114,13 @@ router.post('/imprimir-resumen', async (req: Request, res: Response, next) => {
     const resumen = req.body.resumen;
     const parametrosImpresion = await ParametrosRepo.ObtenerParametrosImpresion();
 
+    // Chequeo de impresora en paralelo con la generación del PDF (ver /imprimir-pdf)
+    const impresoraEnLinea = verificarImpresoraEnLinea(parametrosImpresion.impresora, parametrosImpresion.verificarImpresora !== 0);
+    impresoraEnLinea.catch(() => {});
+
     const pdfBuffer = await ResumenServ.GenerarResumenPDF(resumen, parametrosImpresion);
-    
-    await verificarImpresoraEnLinea(parametrosImpresion.impresora);
+
+    await impresoraEnLinea;
 
     //Crear archivo temporal
     const tempName = `impresion_${uuid()}.pdf`;

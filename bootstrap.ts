@@ -24,7 +24,6 @@ import { DescargarActualizacion } from './updater/config/DescargarActualizacion'
 import { AplicarActualizacion } from './updater/config/AplicarActualizacion';
 import { EjecutarRollback } from './updater/config/EjecutarRollback';
 import { LoggerActualizacion as logger } from './updater/config/LogggerActualizacion';
-import isOnline from 'is-online';
 import fs from 'fs';
 import path from 'path';
 
@@ -179,95 +178,87 @@ async function bootstrap() {
       estado.mensaje = 'Verificando actualizaciones disponibles...';
 
 
-      const conectado = await isOnline();
-      if(conectado){
 
-        logger.info('Iniciando modulo CheckearActualizacion.', {
+      logger.info('Iniciando modulo CheckearActualizacion.', {
+        fase: estado.fase,
+        modulo: 'bootstrap'
+      });
+
+
+      const info = await CheckearActualizacion();
+
+      if (info.desactualizado) {
+        /**
+         * 3️⃣ Descargar actualización si el sistema está desactualizado
+         * NO se aplica acá, solo se descarga.
+         */
+        estado.fase = 'descargando_actualizacion';
+        estado.mensaje = 'Descargando actualización...';
+
+        logger.info('Iniciando modulo DescargarActualizacion.', {
           fase: estado.fase,
           modulo: 'bootstrap'
         });
 
+        await DescargarActualizacion(info);
 
-        const info = await CheckearActualizacion();
-
-        if (info.desactualizado) {
-          /**
-           * 3️⃣ Descargar actualización si el sistema está desactualizado
-           * NO se aplica acá, solo se descarga.
-           */
-          estado.fase = 'descargando_actualizacion';
-          estado.mensaje = 'Descargando actualización...';
-
-          logger.info('Iniciando modulo DescargarActualizacion.', {
+        /**
+         * 3b AUTO-APPLY
+         * --------------
+         * Si la actualización es pequeña (< 50 MB y tamanoBytes informado),
+         * la aplicamos en este mismo arranque en lugar de esperar el próximo.
+         * Resultado: 1 reinicio en lugar de 2.
+         */
+        if (info.autoAplicar) {
+          logger.info('Actualización elegible para auto-apply. Aplicando en este arranque.', {
             fase: estado.fase,
-            modulo: 'bootstrap'
+            modulo: 'bootstrap',
+            tamanoBytes: info.tamanoBytes
           });
 
-          await DescargarActualizacion(info);
+          estado.fase = 'aplicando_actualizacion';
+          estado.mensaje = 'Aplicando actualización automática...';
 
-          /**
-           * 3b AUTO-APPLY
-           * --------------
-           * Si la actualización es pequeña (< 50 MB y tamanoBytes informado),
-           * la aplicamos en este mismo arranque en lugar de esperar el próximo.
-           * Resultado: 1 reinicio en lugar de 2.
-           */
-          if (info.autoAplicar) {
-            logger.info('Actualización elegible para auto-apply. Aplicando en este arranque.', {
+          try {
+            const aplicada = await AplicarActualizacion();
+
+            if (aplicada) {
+              logger.info('Auto-apply exitoso. Reiniciando para cargar nuevos binarios.', {
+                fase: estado.fase,
+                modulo: 'bootstrap'
+              });
+
+              setTimeout(() => {
+                statusServer.close();
+                process.exit(0);
+              }, 2000);
+
+              return;
+            }
+          } catch (autoApplyErr) {
+            // Error recuperable: se continúa con el arranque normal.
+            // La actualización quedó descargada y se aplicará en el próximo arranque.
+            logger.error('Error en auto-apply. Se aplicará en el próximo arranque.', {
               fase: estado.fase,
               modulo: 'bootstrap',
-              tamanoBytes: info.tamanoBytes
-            });
-
-            estado.fase = 'aplicando_actualizacion';
-            estado.mensaje = 'Aplicando actualización automática...';
-
-            try {
-              const aplicada = await AplicarActualizacion();
-
-              if (aplicada) {
-                logger.info('Auto-apply exitoso. Reiniciando para cargar nuevos binarios.', {
-                  fase: estado.fase,
-                  modulo: 'bootstrap'
-                });
-
-                setTimeout(() => {
-                  statusServer.close();
-                  process.exit(0);
-                }, 2000);
-
-                return;
-              }
-            } catch (autoApplyErr) {
-              // Error recuperable: se continúa con el arranque normal.
-              // La actualización quedó descargada y se aplicará en el próximo arranque.
-              logger.error('Error en auto-apply. Se aplicará en el próximo arranque.', {
-                fase: estado.fase,
-                modulo: 'bootstrap',
-                error: autoApplyErr instanceof Error ? autoApplyErr.message : autoApplyErr
-              });
-            }
-          }
-
-        } else {
-          /**
-           * Caso feliz: sistema actualizado.
-           * IMPORTANTE se logea para evitar dudas en soporte.
-           */
-          if(!info.error){
-            logger.info('Sistema actualizado. No se requieren acciones.', {
-              fase: estado.fase,
-              modulo: 'CheckearActualizacion',
-              versionActual: info.local
+              error: autoApplyErr instanceof Error ? autoApplyErr.message : autoApplyErr
             });
           }
-
         }
-      }else{
-        logger.warn(
-          'Sin conectividad. Se omite verificación de actualizaciones.',
-          { fase: estado.fase, modulo: 'bootstrap' }
-        );
+
+      } else {
+        /**
+         * Caso feliz: sistema actualizado.
+         * IMPORTANTE se logea para evitar dudas en soporte.
+         */
+        if(!info.error){
+          logger.info('Sistema actualizado. No se requieren acciones.', {
+            fase: estado.fase,
+            modulo: 'CheckearActualizacion',
+            versionActual: info.local
+          });
+        }
+
       }
 
     } catch (checkErr) {
