@@ -169,6 +169,7 @@ class EstadisticasRepository{
                              " INNER JOIN pedidos p on pd.idPedido = p.id " +
                              " LEFT JOIN cajas c ON c.id = p.idCaja " +
                              " WHERE (p.fecha BETWEEN ? AND ?) AND p.fechaBaja IS NULL AND p.finalizado = 1" +
+                             " AND COALESCE(pd.quitado, 0) = 0" +
                              " AND (c.id IS NULL OR c.fechaBaja IS NULL)" +
                              " GROUP BY pd.idProducto" +
                              " ORDER BY EjeY DESC " +
@@ -218,6 +219,7 @@ class EstadisticasRepository{
                 WHERE p.fecha BETWEEN ? AND ?
                 AND p.fechaBaja IS NULL
                 AND p.finalizado = 1
+                AND COALESCE(pd.quitado, 0) = 0
                 AND (c.id IS NULL OR c.fechaBaja IS NULL)
                 GROUP BY EjeX
                 ORDER BY ${orderBy} ASC

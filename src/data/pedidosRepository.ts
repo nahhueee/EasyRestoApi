@@ -1,5 +1,6 @@
 import moment from 'moment';
 import db from '../db/db.config';
+import logger from '../log/logger';
 import { Pedido } from '../models/Pedido';
 import { DetallePedido } from '../models/PedidoDetalle';
 import { Usuario } from '../models/Usuario';
@@ -197,6 +198,9 @@ class PedidosRepository{
             //Numero de ticket corto (reinicia por caja). Salon se identifica por mesa: no consume numeros, asi la secuencia de mostrador no tiene saltos
             pedido.nroTicket = pedido.tipo?.id === 1 ? undefined : await ObtenerProximoNroTicket(connection, pedido.idCaja ?? 0, moment(pedido.fecha).format('YYYY-MM-DD'));
 
+            //El total lo define el servidor (items activos + recargo/descuento), no el que manda el cliente
+            pedido.total = CalcularTotalPedido(pedido.detalles, pedido.pago);
+
             //Insertamos la venta. El id real es el del auto-increment (el MAX+1 de arriba puede quedar viejo si dos terminales guardan a la vez)
             pedido.id = await InsertPedido(connection, pedido);
 
@@ -243,6 +247,9 @@ class PedidosRepository{
                 pedido.mesa = {id:0};
             }
 
+            //El total lo define el servidor (items activos + recargo/descuento), no el que manda el cliente
+            pedido.total = CalcularTotalPedido(pedido.detalles, pedido.pago);
+
             //Insertamos la venta
             await UpdatePedido(connection, pedido);
 
@@ -288,6 +295,33 @@ class PedidosRepository{
             //Iniciamos una transaccion
             await connection.beginTransaction();
 
+            //El total lo define el servidor con los items activos que hay en la base (los quitados no cuentan).
+            //Al finalizar el ajuste vigente es el del pago que llega; al revertir, el que ya estaba guardado.
+            let pagoCalculo:any = pedido.pago;
+            if(pedido.finalizado != 1){
+                const [pagoRows]:any = await connection.query("SELECT recargo, descuento, tipoRecDes FROM pedidos_pago WHERE idPedido = ?", [pedido.id]);
+                pagoCalculo = Array.isArray(pagoRows) ? pagoRows[0] : undefined;
+            }
+            const [detalleRows]:any = await connection.query("SELECT total, quitado FROM pedidos_detalle WHERE idPedido = ?", [pedido.id]);
+            const totalCalculado = CalcularTotalPedido(detalleRows, pagoCalculo);
+
+            if(Math.abs(totalCalculado - (Number(pedido.total) || 0)) > 0.01){
+                logger.warn(`Pedido ${pedido.id}: el total del cliente (${pedido.total}) difiere del calculado por el servidor (${totalCalculado}). Se usa el del servidor.`);
+            }
+            pedido.total = totalCalculado;
+
+            //Los montos de pago tienen que sumar el total: el ultimo se ajusta (igual que total2 = total - total1 en el cobro)
+            if(pedido.finalizado == 1 && pedido.detallePago && pedido.detallePago.length > 0){
+                const detallesPago = pedido.detallePago;
+                const acumulado = detallesPago.slice(0, -1).reduce((acc, d) => acc + (Number(d.monto) || 0), 0);
+                const ultimo = Redondear2(totalCalculado - acumulado);
+                if(ultimo < 0){
+                    await connection.rollback();
+                    return "Los montos de pago superan el total del pedido. Revisá el pedido y volvé a cobrar.";
+                }
+                detallesPago[detallesPago.length - 1].monto = ultimo;
+            }
+
             //Actualizamos el estado del pedido
             await connection.query("UPDATE pedidos SET finalizado = ?, total = ? WHERE id = ?", [pedido.finalizado, pedido.total, pedido.id]);
 
@@ -317,7 +351,7 @@ class PedidosRepository{
             
             //Actualizamos inventario. Ya no depende de `tipoProd` del payload: el filtro
             //(controlaStock = 1) se resuelve en la base, leyendo el producto real.
-            for (const element of  pedido.detalles!) {
+            for (const element of  pedido.detalles!.filter(d => !d.quitado)) {
                 const signo = pedido.finalizado ? "-" : "+";
 
                 await ActualizarInventario(connection, element, signo)
@@ -497,7 +531,7 @@ async function InsertPagoPedido(connection, pago):Promise<void>{
         const consulta = " INSERT INTO pedidos_pago(idPedido, recargo, descuento, tipoRecDes, obs, realizado, monto) " +
                          " VALUES(?, ?, ?, ?, ?, ?, ?) ";
 
-        const parametros = [pago.idPedido, pago.recargo, pago.descuento, pago.tipoRecDes, pago.obs, pago.realizado, pago.total];
+        const parametros = [pago.idPedido, pago.recargo, pago.descuento, pago.tipoRecDes, pago.obs, pago.realizado, pago.monto ?? 0];
         await connection.query(consulta, parametros);
         
     } catch (error) {
@@ -552,6 +586,31 @@ async function UpdatePedido(connection, pedido):Promise<void>{
     } catch (error) {
         throw error; 
     }
+}
+//#endregion
+
+//#region CALCULO DE TOTALES
+function Redondear2(valor:number):number{
+    return Math.round((valor + Number.EPSILON) * 100) / 100;
+}
+
+// Total de un pedido: suma de los items activos (los quitados no cuentan) mas recargo/descuento.
+// Misma formula que comprobanteService (el ajuste se calcula sobre la suma de items).
+// Acepta detalles del modelo o filas de la base (total puede venir como string, quitado como 0/1/null).
+function CalcularTotalPedido(detalles:any[]|undefined, pago?:any):number{
+    const base = (detalles ?? [])
+        .filter(d => !d.quitado)
+        .reduce((acc, d) => acc + (Number(d.total) || 0), 0);
+
+    const descuento = Number(pago?.descuento) || 0;
+    const recargo = Number(pago?.recargo) || 0;
+    const esPorcentaje = pago?.tipoRecDes == "Porcentaje";
+
+    let total = base;
+    if(descuento != 0) total -= esPorcentaje ? base * descuento / 100 : descuento;
+    if(recargo != 0) total += esPorcentaje ? base * recargo / 100 : recargo;
+
+    return Redondear2(total);
 }
 //#endregion
 
