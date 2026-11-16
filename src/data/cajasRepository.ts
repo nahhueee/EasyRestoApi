@@ -1,4 +1,5 @@
 import db from '../db/db.config';
+import { ResultSetHeader } from 'mysql2';
 import { Caja } from '../models/Caja';
 const moment = require('moment');
 
@@ -10,12 +11,12 @@ class CajasRepository{
         
         try {
              //Obtengo la query segun los filtros
-            let queryRegistros = await ObtenerQuery(filtros,false);
-            let queryTotal = await ObtenerQuery(filtros,true);
+            let { query: queryRegistros, params: paramsRegistros } = await ObtenerQuery(filtros,false);
+            let { query: queryTotal, params: paramsTotal } = await ObtenerQuery(filtros,true);
 
             //Obtengo la lista de registros y el total
-            const [rows] = await connection.query(queryRegistros);
-            const resultado = await connection.query(queryTotal);
+            const [rows] = await connection.query(queryRegistros, paramsRegistros);
+            const resultado = await connection.query(queryTotal, paramsTotal);
 
             const cajas:Caja[] = [];
 
@@ -54,8 +55,8 @@ class CajasRepository{
         const connection = await db.getConnection();
         
         try {
-            let consulta = await ObtenerQuery(filtros,false);
-            const rows = await connection.query(consulta);
+            let { query: consulta, params } = await ObtenerQuery(filtros,false);
+            const rows = await connection.query(consulta, params);
            
             const row = rows[0][0];
             let caja:Caja = new Caja({
@@ -122,17 +123,17 @@ class CajasRepository{
         const connection = await db.getConnection();
         
         try {
-            let idCaja:number = await ObtenerUltimaCaja(connection);
+            const consulta = " INSERT INTO cajas(idResponsable, fecha, hora, inicial, ventas, entradas, salidas, finalizada) " +
+                             " VALUES(?, ?, ?, ?, ?, ?, ?, ?)";
             
-            const consulta = " INSERT INTO cajas(id, idResponsable, fecha, hora, inicial, ventas, entradas, salidas, finalizada) " +
-                             " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            const parametros = [data.responsable.id, moment(data.fecha).format('YYYY-MM-DD'), data.hora, data.inicial, data.ventas, data.entradas, data.salidas, data.finalizada ? 1 : 0];
             
-            const parametros = [idCaja, data.responsable.id, moment(data.fecha).format('YYYY-MM-DD'), data.hora, data.inicial, data.ventas, data.entradas, data.salidas, data.finalizada ? 1 : 0];
-            
-            await connection.query(consulta, parametros);
+            // id real de AUTO_INCREMENT (antes se "adivinaba" con ObtenerUltimaCaja, sin
+            // transaccion ni lock: dos terminales abriendo caja a la vez podian chocar)
+            const [resultado] = await connection.query<ResultSetHeader>(consulta, parametros);
 
             //Terminamos retornando el id de la caja insertada
-            return idCaja;
+            return resultado.insertId;
 
         } catch (error:any) {
             throw error;
@@ -187,10 +188,11 @@ class CajasRepository{
     //#endregion
 }
 
-async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
+async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{query:string, params:any[]}>{
     try {
         //#region VARIABLES
         let query:string;
+        let params:any[] = [];
         let filtro:string = "";
         let paginado:string = "";
     
@@ -203,11 +205,15 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         // #region FILTROS
         if (filtros.idCaja != null && filtros.idCaja != 0)
             {
-                filtro += " AND c.id = " + filtros.idCaja;
+                filtro += " AND c.id = ? ";
+                params.push(filtros.idCaja);
             }
         else
         {
-            if (filtros.responsable != null && filtros.responsable != 0) filtro += " AND c.idResponsable = " + filtros.responsable;
+            if (filtros.responsable != null && filtros.responsable != 0){
+                filtro += " AND c.idResponsable = ? ";
+                params.push(filtros.responsable);
+            }
             // moment().format('YYYY-MM-DD') siempre devuelve un string fijo (o "Invalid date"),
             // no hay input de usuario libre acá — seguro sin parametrizar.
             if (filtros.inicio != null && filtros.inicio != "") filtro += " AND c.fecha >= '" + moment(filtros.inicio).format('YYYY-MM-DD') + "' ";
@@ -224,8 +230,12 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         }
         else
         {//De lo contrario paginamos
-            if (filtros.tamanioPagina != null)
-                paginado = " LIMIT " + filtros.tamanioPagina + " OFFSET " + ((filtros.pagina - 1) * filtros.tamanioPagina);
+            if (filtros.tamanioPagina != null){
+                const tamanio = Math.max(1, Number(filtros.tamanioPagina) || 10);
+                const pagina = Math.max(1, Number(filtros.pagina) || 1);
+                paginado = " LIMIT ? OFFSET ? ";
+                params.push(tamanio, (pagina - 1) * tamanio);
+            }
         }
             
         //Arma la Query con el paginado y los filtros correspondientes
@@ -240,8 +250,8 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
                 paginado +
                 endCount;
 
-        return query;
-            
+        return {query, params};
+
     } catch (error) {
         throw error; 
     }
@@ -257,24 +267,6 @@ async function ObtenerUltimaCajaActiva(connection):Promise<number>{
             resultado = -1;
         }else{
             resultado = rows[0][0].id;
-        }
-
-        return resultado;
-        
-    } catch (error) {
-        throw error; 
-    }
-}
-
-async function ObtenerUltimaCaja(connection):Promise<number>{
-    try {
-        const rows = await connection.query(" SELECT id FROM cajas ORDER BY id DESC LIMIT 1 ");
-        let resultado:number = 0;
-
-        if([rows][0][0].length==0){
-            resultado = 1;
-        }else{
-            resultado = rows[0][0].id + 1;
         }
 
         return resultado;

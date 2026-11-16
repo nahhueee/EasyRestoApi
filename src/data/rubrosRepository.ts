@@ -8,8 +8,10 @@ class RubrosRepository{
         
         try {
            
+            const params:any[] = [];
             if(filtro != ""){
-                filtro = " AND nombre LIKE '%"+ filtro + "%' ";
+                params.push("%" + filtro + "%");
+                filtro = " AND nombre LIKE ? ";
             }
 
             let query = " SELECT * " +
@@ -18,7 +20,7 @@ class RubrosRepository{
                         filtro +
                         " ORDER BY orden ASC ";
 
-            const [resultado] = await connection.query(query);
+            const [resultado] = await connection.query(query, params);
             return [resultado][0];
 
         } catch (error:any) {

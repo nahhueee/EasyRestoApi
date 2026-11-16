@@ -56,10 +56,21 @@ class EstadisticasRepository{
         
         try {
             const { fechaDesde, fechaHasta } = obtenerRangosFecha(filtros);
-            let adicional = filtros.caja && filtros.caja != 0 ? " AND p.idCaja = " + filtros.caja : " AND (p.fecha BETWEEN ? AND ?) ";
-            
-            if(filtros.usuario && filtros.usuario != 0)
-                adicional += " AND p.idResponsable = " + filtros.usuario;
+            // Los params se arman en el mismo orden en que aparecen los ? en `adicional`.
+            const paramsAdicional:any[] = [];
+            let adicional:string;
+            if(filtros.caja && filtros.caja != 0){
+                adicional = " AND p.idCaja = ? ";
+                paramsAdicional.push(filtros.caja);
+            } else {
+                adicional = " AND (p.fecha BETWEEN ? AND ?) ";
+                paramsAdicional.push(fechaDesde, fechaHasta);
+            }
+
+            if(filtros.usuario && filtros.usuario != 0){
+                adicional += " AND p.idResponsable = ? ";
+                paramsAdicional.push(filtros.usuario);
+            }
 
             //#region CONSULTAS
             const consultaTotales =  " SELECT  " +
@@ -74,7 +85,7 @@ class EstadisticasRepository{
                                      " WHERE p.fechaBaja IS NULL AND ppag.realizado = 1 " +
                                      " AND (c.id IS NULL OR c.fechaBaja IS NULL) " +
                                      adicional;
-            const [resultTotales] = await connection.query(consultaTotales, [fechaDesde, fechaHasta]);
+            const [resultTotales] = await connection.query(consultaTotales, paramsAdicional);
 
             const consultaCantidad = " SELECT  " +
                                      " SUM(categoria = 'EFECTIVO') AS cant_efectivo, " +
@@ -102,7 +113,7 @@ class EstadisticasRepository{
                                      " ) t;";
 
 
-            const [resultCantidad] = await connection.query(consultaCantidad, [fechaDesde, fechaHasta]);
+            const [resultCantidad] = await connection.query(consultaCantidad, paramsAdicional);
             //#endregion
 
             return {

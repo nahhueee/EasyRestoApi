@@ -8,12 +8,12 @@ class MovimientosRepository{
         
         try {
              //Obtengo la query segun los filtros
-            let queryRegistros = await ObtenerQuery(filtros,false);
-            let queryTotal = await ObtenerQuery(filtros,true);
+            let { query: queryRegistros, params: paramsRegistros } = await ObtenerQuery(filtros,false);
+            let { query: queryTotal, params: paramsTotal } = await ObtenerQuery(filtros,true);
 
             //Obtengo la lista de registros y el total
-            const rows = await connection.query(queryRegistros);
-            const resultado = await connection.query(queryTotal);
+            const rows = await connection.query(queryRegistros, paramsRegistros);
+            const resultado = await connection.query(queryTotal, paramsTotal);
             
             return {total:resultado[0][0].total, registros:rows[0]};
 
@@ -90,11 +90,12 @@ class MovimientosRepository{
     //#endregion
 }
 
-async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
+async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{query:string, params:any[]}>{
     try {
         
         //#region VARIABLES
         let query:string;
+        let params:any[] = [];
         let filtro:string = "";
         let paginado:string = "";
     
@@ -103,7 +104,8 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         //#endregion
 
         // #region FILTROS
-        filtro = " WHERE idCaja = " + filtros.caja;
+        filtro = " WHERE idCaja = ? ";
+        params.push(filtros.caja);
 
         if (filtros.tipoMovimiento != 0)
             filtro += " AND tipoMovimiento = " + (filtros.tipoMovimiento == 1 ? "'ENTRADA'" : "'SALIDA'");
@@ -116,8 +118,12 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         }
         else
         {//De lo contrario paginamos
-            if (filtros.tamanioPagina != null)
-                paginado = " LIMIT " + filtros.tamanioPagina + " OFFSET " + ((filtros.pagina - 1) * filtros.tamanioPagina);
+            if (filtros.tamanioPagina != null){
+                const tamanio = Math.max(1, Number(filtros.tamanioPagina) || 10);
+                const pagina = Math.max(1, Number(filtros.pagina) || 1);
+                paginado = " LIMIT ? OFFSET ? ";
+                params.push(tamanio, (pagina - 1) * tamanio);
+            }
         }
             
         //Arma la Query con el paginado y los filtros correspondientes
@@ -129,8 +135,8 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
                 paginado +
                 endCount;
 
-        return query;
-            
+        return {query, params};
+
     } catch (error) {
         throw error; 
     }

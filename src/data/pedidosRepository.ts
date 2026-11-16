@@ -21,12 +21,12 @@ class PedidosRepository{
         
         try {
             //Obtengo la query segun los filtros
-            let queryRegistros = await ObtenerQuery(filtros,false);
-            let queryTotal = await ObtenerQuery(filtros,true);
+            let { query: queryRegistros, params: paramsRegistros } = await ObtenerQuery(filtros,false);
+            let { query: queryTotal, params: paramsTotal } = await ObtenerQuery(filtros,true);
 
             //Obtengo la lista de registros y el total
-            const [rows] = await connection.query(queryRegistros);
-            const resultado = await connection.query(queryTotal);
+            const [rows] = await connection.query(queryRegistros, paramsRegistros);
+            const resultado = await connection.query(queryTotal, paramsTotal);
             const pedidos:Pedido[] = [];
            
             if (Array.isArray(rows)) {
@@ -49,8 +49,8 @@ class PedidosRepository{
         const connection = await db.getConnection();
         
         try {
-            let consulta = await ObtenerQuery({responsable:parseInt(idMozo), idCaja:parseInt(idCaja), finalizado:1},false);
-            const [rows] = await connection.query(consulta);
+            let { query: consulta, params } = await ObtenerQuery({responsable:parseInt(idMozo), idCaja:parseInt(idCaja), finalizado:1},false);
+            const [rows] = await connection.query(consulta, params);
            
             const pedidos:ObjResumenPagos[] = [];
            
@@ -119,8 +119,8 @@ class PedidosRepository{
         const connection = await db.getConnection();
 
         try {
-            let consulta = await ObtenerQuery(filtros,false);
-            const rows = await connection.query(consulta);
+            let { query: consulta, params } = await ObtenerQuery(filtros,false);
+            const rows = await connection.query(consulta, params);
            
             const row = rows[0][0];
             return await this.ArmarObjetoPedido(connection, row);
@@ -478,23 +478,6 @@ class PedidosRepository{
 }
 
 //#region INSERT UPDATE
-async function ObtenerUltimoPedido(connection):Promise<number>{
-    try {
-        const rows = await connection.query(" SELECT id FROM pedidos ORDER BY id DESC LIMIT 1 ");
-        let resultado:number = 0;
-
-        if([rows][0][0].length==0){
-            resultado = 1;
-        }else{
-            resultado = rows[0][0].id + 1;
-        }
-
-        return resultado;
-
-    } catch (error) {
-        throw error; 
-    }
-}
 // Proximo nroTicket: por caja si idCaja > 0; si no hay caja (modo pedidos, en deprecacion) reinicia por dia.
 // No filtra por fechaBaja a proposito: el numero de un pedido eliminado no se reutiliza.
 // Serializa terminales con un mutex sobre una fila que siempre existe (la caja; sin caja, el parametro modoTrabajo). Bloquear el rango de
@@ -715,10 +698,11 @@ async function ActualizarInventario(connection, detalle, operacion):Promise<void
 }
 //#endregion
 
-async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
+async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{query:string, params:any[]}>{
     try {
         //#region VARIABLES
         let query:string;
+        let params:any[] = [];
         let filtro:string = "";
         let paginado:string = "";
     
@@ -727,19 +711,22 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         //#endregion
 
         // #region FILTROS
-        if (filtros.busqueda != null && filtros.busqueda != "") 
-            filtro += " AND nombre LIKE '%"+ filtros.busqueda + "%' ";
+        if (filtros.busqueda != null && filtros.busqueda != ""){
+            filtro += " AND nombre LIKE ? ";
+            params.push("%" + filtros.busqueda + "%");
+        }
 
         if (filtros.idPedido != "" && filtros.idPedido != null)
         {
-            filtro += " AND p.id = " + filtros.idPedido;
+            filtro += " AND p.id = ? ";
+            params.push(filtros.idPedido);
         }
         else
         {   
-            if (filtros.idCaja != 0) { filtro += " AND p.idCaja = " + filtros.idCaja; }
-            if (filtros.tipoPedido && filtros.tipoPedido != 0) { filtro += " AND p.idTipo = " + filtros.tipoPedido; }
-            if (filtros.responsable != 0) { filtro += " AND p.idResponsable = " + filtros.responsable; }
-            if (filtros.cliente != null) { filtro += " AND p.cliente LIKE '%" + filtros.cliente + "%' "; }
+            if (filtros.idCaja != 0) { filtro += " AND p.idCaja = ? "; params.push(filtros.idCaja); }
+            if (filtros.tipoPedido && filtros.tipoPedido != 0) { filtro += " AND p.idTipo = ? "; params.push(filtros.tipoPedido); }
+            if (filtros.responsable != 0) { filtro += " AND p.idResponsable = ? "; params.push(filtros.responsable); }
+            if (filtros.cliente != null) { filtro += " AND p.cliente LIKE ? "; params.push("%" + filtros.cliente + "%"); }
 
             if (filtros.fecha != null) { filtro += " AND p.fecha = '" + moment(filtros.fecha).format('YYYY-MM-DD') + "' "; }
 
@@ -754,8 +741,12 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         }
         else
         {//De lo contrario paginamos
-            if (filtros.tamanioPagina != null)
-                paginado = " LIMIT " + filtros.tamanioPagina + " OFFSET " + ((filtros.pagina - 1) * filtros.tamanioPagina);
+            if (filtros.tamanioPagina != null){
+                const tamanio = Math.max(1, Number(filtros.tamanioPagina) || 10);
+                const pagina = Math.max(1, Number(filtros.pagina) || 1);
+                paginado = " LIMIT ? OFFSET ? ";
+                params.push(tamanio, (pagina - 1) * tamanio);
+            }
         }
             
         //Arma la Query con el paginado y los filtros correspondientes
@@ -777,8 +768,8 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
                 paginado +
                 endCount;
 
-        return query;
-            
+        return {query, params};
+
     } catch (error) {
         throw error; 
     }

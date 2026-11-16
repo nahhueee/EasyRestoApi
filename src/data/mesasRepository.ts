@@ -168,10 +168,11 @@ class MesasRepository{
     //#endregion
 }
 
-async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
+async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{query:string, params:any[]}>{
     try {
         //#region VARIABLES
         let query:string;
+        let params:any[] = [];
         let filtro:string = "";
         let paginado:string = "";
     
@@ -186,8 +187,12 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
         }
         else
         {//De lo contrario paginamos
-            if (filtros.tamanioPagina != null)
-                paginado = " LIMIT " + filtros.tamanioPagina + " OFFSET " + ((filtros.pagina - 1) * filtros.tamanioPagina);
+            if (filtros.tamanioPagina != null){
+                const tamanio = Math.max(1, Number(filtros.tamanioPagina) || 10);
+                const pagina = Math.max(1, Number(filtros.pagina) || 1);
+                paginado = " LIMIT ? OFFSET ? ";
+                params.push(tamanio, (pagina - 1) * tamanio);
+            }
         }
             
         //Arma la Query con el paginado y los filtros correspondientes
@@ -200,8 +205,8 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<string>{
             paginado +
             endCount;
 
-        return query;
-            
+        return {query, params};
+
     } catch (error) {
         throw error; 
     }
