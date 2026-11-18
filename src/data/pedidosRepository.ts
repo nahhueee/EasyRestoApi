@@ -195,6 +195,9 @@ class PedidosRepository{
                 pedido.mesa = {id:0}
             }
 
+            //Mesa no principal de un grupo (por ejemplo, desde el mobile): el pedido va a la principal
+            pedido.mesa.id = await ResolverMesaPrincipal(connection, Number(pedido.mesa.id ?? 0), 0);
+
             //Numero de ticket corto (reinicia por caja). Salon se identifica por mesa: no consume numeros, asi la secuencia de mostrador no tiene saltos
             pedido.nroTicket = pedido.tipo?.id === 1 ? undefined : await ObtenerProximoNroTicket(connection, pedido.idCaja ?? 0, moment(pedido.fecha).format('YYYY-MM-DD'));
 
@@ -247,16 +250,22 @@ class PedidosRepository{
                 pedido.mesa = {id:0};
             }
 
+            //Mesa no principal de un grupo (por ejemplo, desde el mobile): el pedido va a la principal
+            pedido.mesa.id = await ResolverMesaPrincipal(connection, Number(pedido.mesa.id ?? 0), pedido.id);
+
             //El total lo define el servidor (items activos + recargo/descuento), no el que manda el cliente
             pedido.total = CalcularTotalPedido(pedido.detalles, pedido.pago);
 
             //Insertamos la venta
             await UpdatePedido(connection, pedido);
 
-            //Marcamos la mesa como no disponible
+            //Liberamos la mesa anterior por idPedido (antes se "liberaba" la nueva y la anterior quedaba ocupada sin pedido).
+            //Va fuera del if: si el pedido pasa a "sin mesa" tambien hay que liberar la que tenia
+            await connection.query("UPDATE mesas SET idPedido = 0 WHERE idPedido = ?", [pedido.id]);
+
+            //Marcamos la nueva
             if(pedido.mesa?.id != 0){
-                await connection.query("UPDATE mesas SET idPedido = 0 WHERE id = ?", [pedido.mesa?.id]); //Desmarcamos la anterior
-                await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]); //Marcamos la nueva
+                await connection.query("UPDATE mesas SET idPedido = ? WHERE id = ?", [pedido.id, pedido.mesa?.id]);
             }
 
             //Eliminamos los detalles del pedido
@@ -494,6 +503,22 @@ async function ObtenerProximoNroTicket(connection, idCaja:number, fecha:string):
         : " SELECT COALESCE(MAX(nroTicket),0) + 1 AS prox FROM pedidos WHERE idCaja = 0 AND fecha = ? ";
     const [rows] = await connection.query(consulta, [idCaja > 0 ? idCaja : fecha]);
     return Number(rows[0].prox);
+}
+
+/** Si la mesa es una NO principal de un grupo ("mesas juntas"), devuelve la principal: el grupo se muestra y se cobra por ella.
+ *  No redirige si la principal ya tiene otro pedido abierto (pisarlo dejaría ese pedido sin mesa): ahí queda como venía. */
+async function ResolverMesaPrincipal(connection, idMesa:number, idPedido:number = 0):Promise<number>{
+    if(!idMesa) return idMesa;
+
+    const [rows]:any = await connection.query(
+        " SELECT p.id, p.idPedido FROM mesas m " +
+        " INNER JOIN mesas p ON p.codGrupo = m.codGrupo AND p.principal = 1 " +
+        " WHERE m.id = ? AND m.codGrupo <> '' AND m.principal = 0 ", [idMesa]);
+    if(rows.length == 0) return idMesa;
+
+    const principal = rows[0];
+    if(principal.idPedido != 0 && principal.idPedido != idPedido) return idMesa;
+    return principal.id;
 }
 
 async function InsertPedido(connection, pedido):Promise<number>{
