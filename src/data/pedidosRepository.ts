@@ -36,7 +36,7 @@ class PedidosRepository{
                   }
             }
 
-            return {total:resultado[0][0].total, registros:pedidos};
+            return {total:resultado[0][0].total, registros:pedidos, monto:Number(resultado[0][0].monto)};
 
         } catch (error:any) {
             throw error;
@@ -728,6 +728,13 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{query:string, 
             if (filtros.responsable != 0) { filtro += " AND p.idResponsable = ? "; params.push(filtros.responsable); }
             if (filtros.cliente != null) { filtro += " AND p.cliente LIKE ? "; params.push("%" + filtros.cliente + "%"); }
 
+            //numero: lo que ve el usuario como "Nro." (nroTicket, o el id en los pedidos que no tienen nroTicket).
+            //A diferencia de idPedido, convive con el resto de los filtros (caja, tipo, finalizado, etc.)
+            if (filtros.numero != null && filtros.numero !== "" && Number.isInteger(Number(filtros.numero))) {
+                filtro += " AND (p.nroTicket = ? OR (p.nroTicket IS NULL AND p.id = ?)) ";
+                params.push(Number(filtros.numero), Number(filtros.numero));
+            }
+
             if (filtros.fecha != null) { filtro += " AND p.fecha = '" + moment(filtros.fecha).format('YYYY-MM-DD') + "' "; }
 
             filtro += (filtros.finalizado) ? " AND p.finalizado = 1 " : " AND p.finalizado = 0 ";
@@ -736,7 +743,7 @@ async function ObtenerQuery(filtros:any,esTotal:boolean):Promise<{query:string, 
 
         if (esTotal)
         {//Si esTotal agregamos para obtener un total de la consulta
-            count = "SELECT COUNT(*) AS total FROM ( ";
+            count = "SELECT COUNT(*) AS total, COALESCE(SUM(subquery.total), 0) AS monto FROM ( ";
             endCount = " ) as subquery";
         }
         else
