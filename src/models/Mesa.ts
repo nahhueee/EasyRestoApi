@@ -10,6 +10,13 @@ export class Mesa {
     asignacion?:number;
     usuarioAsignado?:string;
     estado?: string;
+    //Datos del pedido abierto (solo en mesas/obtener por salon)
+    total?:number;
+    fecha?:string;
+    hora?:string;
+    ticketImp?:string;
+    comandaImp?:string;
+    mozoPedido?:string;
 
     constructor(data?: any) {
         if (data) {

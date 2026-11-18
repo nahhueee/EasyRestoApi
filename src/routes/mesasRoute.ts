@@ -44,5 +44,43 @@ router.delete('/eliminar/:id', async (req:Request, res:Response, next) => {
 });
 //#endregion
 
+//#region OPERACIONES (atomicas: no usar mesas/modificar para estos campos)
+router.post('/juntar', async (req:Request, res:Response, next) => {
+    try{ 
+        res.json(await MesasRepo.Juntar(req.body?.ids));
+
+    } catch(error:any){
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar juntar las mesas.", 500, { modulo: 'mesasRoute.juntar' }, error));
+    }
+});
+
+router.post('/separar', async (req:Request, res:Response, next) => {
+    try{ 
+        res.json(await MesasRepo.Separar(req.body?.codGrupo));
+
+    } catch(error:any){
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar separar las mesas.", 500, { modulo: 'mesasRoute.separar' }, error));
+    }
+});
+
+router.put('/asignar', async (req:Request, res:Response, next) => {
+    try{ 
+        res.json(await MesasRepo.Asignar(req.body));
+
+    } catch(error:any){
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar asignar las mesas.", 500, { modulo: 'mesasRoute.asignar' }, error));
+    }
+});
+
+router.post('/agregar-varias', async (req:Request, res:Response, next) => {
+    try{ 
+        res.json(await MesasRepo.AgregarVarias(req.body));
+
+    } catch(error:any){
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar crear las mesas.", 500, { modulo: 'mesasRoute.agregarVarias' }, error));
+    }
+});
+//#endregion
+
 // Export the router
 export default router; 
