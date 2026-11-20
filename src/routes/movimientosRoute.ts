@@ -33,6 +33,16 @@ router.put('/eliminar', async (req:Request, res:Response, next) => {
         next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar eliminar el movimiento.", 500, { modulo: 'movimientosRoute.eliminar' }, error));
     }
 });
+
+router.put('/anular', async (req:Request, res:Response, next) => {
+    try{ 
+        res.json(await MovimientosRepo.Anular(req.body));
+
+    } catch(error:any){
+        if(error instanceof AppError) return next(error); //validaciones del repository (400)
+        next(new AppError(CodigoError.INTERNAL_ERROR, "Error al intentar anular el movimiento.", 500, { modulo: 'movimientosRoute.anular' }, error));
+    }
+});
 //#endregion
 
 // Export the router
